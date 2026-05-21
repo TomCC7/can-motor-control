@@ -1,0 +1,36 @@
+# OpenArm single-arm config — four DM4340 joints on one SocketCAN bus.
+#
+# Load with:
+#   let mut registry = dm_control::CodecRegistry::new();
+#   dm_codec::register(&mut registry);
+#   let mut robot = dm_control::Robot::from_config("configs/openarm_single.toml", &registry)?;
+#
+# Or in Python:
+#   import dm_control
+#   robot = dm_control.Robot.from_config("configs/openarm_single.toml")
+#   # (the wheel auto-registers "damiao")
+
+[bus.main]
+kind      = "socketcan"
+interface = "can0"
+fd        = false              # CAN-FD reserved for a future change
+vendor    = "damiao"           # selects codec for this bus
+
+[[group]]
+name                 = "arm"
+kind                 = "arm"
+bus                  = "main"
+default_control_mode = "mit"
+motors = [
+  { name = "j0", type = "DM4340", send_id = 0x01, recv_id = 0x11 },
+  { name = "j1", type = "DM4340", send_id = 0x02, recv_id = 0x12 },
+  { name = "j2", type = "DM4340", send_id = 0x03, recv_id = 0x13 },
+  { name = "j3", type = "DM4340", send_id = 0x04, recv_id = 0x14 },
+]
+
+# Example gripper on the same bus (uncomment to enable):
+# [[group]]
+# name = "grip"
+# kind = "gripper"
+# bus  = "main"
+# motor = { name = "g", type = "DM4310", send_id = 0x08, recv_id = 0x18 }

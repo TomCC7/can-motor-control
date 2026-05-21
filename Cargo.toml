@@ -1,0 +1,34 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/motor-codec",
+    "crates/dm-codec",
+    "crates/dm-control",
+    "crates/dm-control-py",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.81"
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/cc/dm_control_rs"
+
+[workspace.dependencies]
+thiserror = { version = "2.0", default-features = false }
+bitflags = { version = "2.6", default-features = false }
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+toml = "0.8"
+mio = { version = "1.0", features = ["os-poll", "os-ext"] }
+libc = "0.2"
+pyo3 = { version = "0.22", features = ["extension-module", "abi3-py310"] }
+numpy = "0.22"
+log = "0.4"
+
+motor-codec = { path = "crates/motor-codec", version = "0.1.0", default-features = false }
+dm-codec = { path = "crates/dm-codec", version = "0.1.0", default-features = false }
+dm-control = { path = "crates/dm-control", version = "0.1.0" }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

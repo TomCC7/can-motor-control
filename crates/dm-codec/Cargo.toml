@@ -1,0 +1,15 @@
+[package]
+name = "dm-codec"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Damiao motor codec — implements motor-codec::MotorCodec for the Damiao CAN protocol"
+
+[features]
+default = []
+std = ["motor-codec/std"]
+
+[dependencies]
+motor-codec = { workspace = true }

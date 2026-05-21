@@ -1,1 +1,14 @@
 .claude/
+target/
+Cargo.lock
+**/__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+build/
+dist/
+*.whl
+.venv/
+.pytest_cache/
+.mypy_cache/
+*.so

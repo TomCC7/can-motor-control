@@ -1,0 +1,16 @@
+[package]
+name = "motor-codec"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Vendor-agnostic motor codec trait and shared types for CAN-bus motor families (Damiao, Robostride, ...)"
+
+[features]
+default = []
+std = ["thiserror/std"]
+
+[dependencies]
+thiserror = { workspace = true }
+bitflags = { workspace = true }

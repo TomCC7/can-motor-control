@@ -1,0 +1,23 @@
+[package]
+name = "dm-control-py"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "PyO3 bindings for dm-control: Python interface to the Damiao motor control library"
+
+[lib]
+name = "dm_control"
+crate-type = ["cdylib"]
+# The lib name collides with `dm-control`'s; exclude this binding crate from
+# `cargo doc` so the Rust API docs come from the source-of-truth crate.
+doc = false
+
+[dependencies]
+dm-control = { workspace = true }
+dm-codec = { workspace = true, features = ["std"] }
+motor-codec = { workspace = true, features = ["std"] }
+pyo3 = { workspace = true }
+numpy = { workspace = true }
+log = { workspace = true }
