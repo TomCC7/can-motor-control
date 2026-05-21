@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use dm_codec::{parse_motor_type as dm_parse_type, DamiaoCodec, VENDOR_NAME as DAMIAO_VENDOR};
 use dm_control::{
-    Arm, CanBus, CodecRegistry, GroupKind, Gripper, MitCmd, PosForceCmd, PosVelCmd, Robot,
+    Arm, CanBus, CodecRegistry, Gripper, GroupKind, MitCmd, PosForceCmd, PosVelCmd, Robot,
     RobotBuilder, VelCmd,
 };
 use motor_codec::MotorCodec;
@@ -32,7 +32,10 @@ pub struct PyMotor {
 impl PyMotor {
     fn snapshot(&self, py: Python<'_>) -> PyResult<MotorSnapshot> {
         let robot = self.robot.bind(py).borrow();
-        let inner = robot.inner.lock().map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("robot mutex poisoned"))?;
+        let inner = robot
+            .inner
+            .lock()
+            .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("robot mutex poisoned"))?;
         let g = inner
             .group(&self.group_name)
             .ok_or_else(|| PyKeyError::new_err(self.group_name.clone()))?;
@@ -163,7 +166,10 @@ pub struct PyArm {
 impl PyArm {
     fn __len__(&self, py: Python<'_>) -> PyResult<usize> {
         let r = self.robot.bind(py).borrow();
-        let inner = r.inner.lock().map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("poisoned"))?;
+        let inner = r
+            .inner
+            .lock()
+            .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("poisoned"))?;
         let g = inner
             .group(&self.name)
             .ok_or_else(|| PyKeyError::new_err(self.name.clone()))?;
@@ -172,7 +178,10 @@ impl PyArm {
 
     fn __getitem__(&self, py: Python<'_>, motor_name: &str) -> PyResult<PyMotor> {
         let r = self.robot.bind(py).borrow();
-        let inner = r.inner.lock().map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("poisoned"))?;
+        let inner = r
+            .inner
+            .lock()
+            .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("poisoned"))?;
         let g = inner
             .group(&self.name)
             .ok_or_else(|| PyKeyError::new_err(self.name.clone()))?;
@@ -191,7 +200,10 @@ impl PyArm {
 
     fn positions<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
         let r = self.robot.bind(py).borrow();
-        let inner = r.inner.lock().map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("poisoned"))?;
+        let inner = r
+            .inner
+            .lock()
+            .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("poisoned"))?;
         let g = inner
             .group(&self.name)
             .ok_or_else(|| PyKeyError::new_err(self.name.clone()))?;
@@ -200,7 +212,10 @@ impl PyArm {
     }
     fn velocities<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
         let r = self.robot.bind(py).borrow();
-        let inner = r.inner.lock().map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("poisoned"))?;
+        let inner = r
+            .inner
+            .lock()
+            .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("poisoned"))?;
         let g = inner
             .group(&self.name)
             .ok_or_else(|| PyKeyError::new_err(self.name.clone()))?;
@@ -209,7 +224,10 @@ impl PyArm {
     }
     fn torques<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
         let r = self.robot.bind(py).borrow();
-        let inner = r.inner.lock().map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("poisoned"))?;
+        let inner = r
+            .inner
+            .lock()
+            .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("poisoned"))?;
         let g = inner
             .group(&self.name)
             .ok_or_else(|| PyKeyError::new_err(self.name.clone()))?;
@@ -221,7 +239,10 @@ impl PyArm {
         let arr = cmds.as_array();
         let expected_n = {
             let r = self.robot.bind(py).borrow();
-            let inner = r.inner.lock().map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("poisoned"))?;
+            let inner = r
+                .inner
+                .lock()
+                .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("poisoned"))?;
             inner
                 .group(&self.name)
                 .ok_or_else(|| PyKeyError::new_err(self.name.clone()))?
@@ -253,7 +274,10 @@ impl PyArm {
         let arr = cmds.as_array();
         let expected_n = {
             let r = self.robot.bind(py).borrow();
-            let inner = r.inner.lock().map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("poisoned"))?;
+            let inner = r
+                .inner
+                .lock()
+                .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("poisoned"))?;
             inner
                 .group(&self.name)
                 .ok_or_else(|| PyKeyError::new_err(self.name.clone()))?
@@ -279,7 +303,10 @@ impl PyArm {
         let arr = cmds.as_array();
         let expected_n = {
             let r = self.robot.bind(py).borrow();
-            let inner = r.inner.lock().map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("poisoned"))?;
+            let inner = r
+                .inner
+                .lock()
+                .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("poisoned"))?;
             inner
                 .group(&self.name)
                 .ok_or_else(|| PyKeyError::new_err(self.name.clone()))?
@@ -301,7 +328,10 @@ impl PyArm {
         let arr = cmds.as_array();
         let expected_n = {
             let r = self.robot.bind(py).borrow();
-            let inner = r.inner.lock().map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("poisoned"))?;
+            let inner = r
+                .inner
+                .lock()
+                .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("poisoned"))?;
             inner
                 .group(&self.name)
                 .ok_or_else(|| PyKeyError::new_err(self.name.clone()))?
@@ -396,7 +426,10 @@ pub struct PyMotorGroup {
 impl PyMotorGroup {
     fn __len__(&self, py: Python<'_>) -> PyResult<usize> {
         let r = self.robot.bind(py).borrow();
-        let inner = r.inner.lock().map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("poisoned"))?;
+        let inner = r
+            .inner
+            .lock()
+            .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("poisoned"))?;
         let g = inner
             .group(&self.name)
             .ok_or_else(|| PyKeyError::new_err(self.name.clone()))?;
@@ -468,11 +501,8 @@ impl PyRobotBuilder {
         bus: &str,
         motors: Vec<PyMotorSpec>,
     ) -> Py<Self> {
-        slf.groups.push(PendingGroup::Arm(
-            name.to_string(),
-            bus.to_string(),
-            motors,
-        ));
+        slf.groups
+            .push(PendingGroup::Arm(name.to_string(), bus.to_string(), motors));
         slf.into()
     }
 
@@ -519,11 +549,9 @@ impl PyRobotBuilder {
                 PendingGroup::Gripper(name, bus, motor) => {
                     builder.add_gripper(name, bus, motor.inner)
                 }
-                PendingGroup::Generic(name, bus, motors) => builder.add_generic(
-                    name,
-                    bus,
-                    motors.into_iter().map(|s| s.inner).collect(),
-                ),
+                PendingGroup::Generic(name, bus, motors) => {
+                    builder.add_generic(name, bus, motors.into_iter().map(|s| s.inner).collect())
+                }
             };
         }
         let robot = builder.build().map_err(into_pyerr)?;
@@ -629,7 +657,10 @@ impl PyRobot {
     fn __getitem__(slf: Py<Self>, py: Python<'_>, name: &str) -> PyResult<PyObject> {
         let kind = {
             let r = slf.bind(py).borrow();
-            let inner = r.inner.lock().map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("poisoned"))?;
+            let inner = r
+                .inner
+                .lock()
+                .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("poisoned"))?;
             let g = inner
                 .group(name)
                 .ok_or_else(|| PyKeyError::new_err(name.to_string()))?;
@@ -638,7 +669,10 @@ impl PyRobot {
         // Quick discriminant check using sample variants. PyO3 doesn't let us
         // pattern-match outside the lock, so re-lock to query.
         let r = slf.bind(py).borrow();
-        let inner = r.inner.lock().map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("poisoned"))?;
+        let inner = r
+            .inner
+            .lock()
+            .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("poisoned"))?;
         let g = inner
             .group(name)
             .ok_or_else(|| PyKeyError::new_err(name.to_string()))?;
@@ -686,7 +720,10 @@ impl PyRobot {
             .lock()
             .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("poisoned"))?;
         let names: Vec<String> = inner.group_names().map(str::to_string).collect();
-        PyList::new_bound(py, names).into_any().downcast_into::<PyList>().map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("list creation"))
+        PyList::new_bound(py, names)
+            .into_any()
+            .downcast_into::<PyList>()
+            .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("list creation"))
     }
 
     fn bus_names<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
@@ -695,7 +732,10 @@ impl PyRobot {
             .lock()
             .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("poisoned"))?;
         let names: Vec<String> = inner.bus_names().map(str::to_string).collect();
-        PyList::new_bound(py, names).into_any().downcast_into::<PyList>().map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("list creation"))
+        PyList::new_bound(py, names)
+            .into_any()
+            .downcast_into::<PyList>()
+            .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("list creation"))
     }
 
     fn is_connected(&self) -> PyResult<bool> {
@@ -706,4 +746,3 @@ impl PyRobot {
         Ok(inner.is_connected())
     }
 }
-

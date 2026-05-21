@@ -16,17 +16,15 @@ pub struct PyCanFrame {
 impl PyCanFrame {
     #[staticmethod]
     fn classical(id: u32, payload: &[u8]) -> PyResult<Self> {
-        let inner = CanFrame::classical(id, payload).map_err(|e| {
-            transport_to_pyerr(dm_control::TransportError::FrameError(e))
-        })?;
+        let inner = CanFrame::classical(id, payload)
+            .map_err(|e| transport_to_pyerr(dm_control::TransportError::FrameError(e)))?;
         Ok(Self { inner })
     }
 
     #[staticmethod]
     fn fd(id: u32, payload: &[u8]) -> PyResult<Self> {
-        let inner = CanFrame::fd(id, payload).map_err(|e| {
-            transport_to_pyerr(dm_control::TransportError::FrameError(e))
-        })?;
+        let inner = CanFrame::fd(id, payload)
+            .map_err(|e| transport_to_pyerr(dm_control::TransportError::FrameError(e)))?;
         Ok(Self { inner })
     }
 

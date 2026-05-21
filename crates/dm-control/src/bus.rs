@@ -110,28 +110,20 @@ mod tests {
             self.binds.fetch_add(1, Ordering::SeqCst);
         }
         fn encode_enable(&self, m: MotorRef<'_>) -> Result<CanFrame, CodecError> {
-            CanFrame::classical(m.send_id, &[0xFC]).map_err(|_| CodecError::DecodeFailed {
-                reason: "frame",
-            })
+            CanFrame::classical(m.send_id, &[0xFC])
+                .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
         }
         fn encode_disable(&self, m: MotorRef<'_>) -> Result<CanFrame, CodecError> {
-            CanFrame::classical(m.send_id, &[0xFD]).map_err(|_| CodecError::DecodeFailed {
-                reason: "frame",
-            })
+            CanFrame::classical(m.send_id, &[0xFD])
+                .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
         }
         fn encode_set_zero(&self, m: MotorRef<'_>) -> Result<CanFrame, CodecError> {
-            CanFrame::classical(m.send_id, &[0xFE]).map_err(|_| CodecError::DecodeFailed {
-                reason: "frame",
-            })
+            CanFrame::classical(m.send_id, &[0xFE])
+                .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
         }
-        fn encode_command(
-            &self,
-            m: MotorRef<'_>,
-            _: &Command,
-        ) -> Result<CanFrame, CodecError> {
-            CanFrame::classical(m.send_id, &[0x55]).map_err(|_| CodecError::DecodeFailed {
-                reason: "frame",
-            })
+        fn encode_command(&self, m: MotorRef<'_>, _: &Command) -> Result<CanFrame, CodecError> {
+            CanFrame::classical(m.send_id, &[0x55])
+                .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
         }
         fn decode(&self, frame: &CanFrame) -> Result<Option<Event>, CodecError> {
             self.decodes.fetch_add(1, Ordering::SeqCst);

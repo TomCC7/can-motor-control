@@ -178,7 +178,10 @@ impl MotorGroup {
         };
         let bus_arc = self.bus_arc()?;
         let mut bus = bus_arc.lock().map_err(|_| Error::BusPoisoned)?;
-        let frame = bus.codec.encode_command(m_ref, &cmd).map_err(Error::Codec)?;
+        let frame = bus
+            .codec
+            .encode_command(m_ref, &cmd)
+            .map_err(Error::Codec)?;
         bus.transport.send(&frame).map_err(Error::Transport)
     }
 
@@ -652,28 +655,20 @@ mod integration_tests {
         }
         fn bind_to_bus(&mut self, _: BusCapabilities) {}
         fn encode_enable(&self, m: MotorRef<'_>) -> Result<CanFrame, CodecError> {
-            CanFrame::classical(m.send_id, &[0xFC]).map_err(|_| CodecError::DecodeFailed {
-                reason: "frame",
-            })
+            CanFrame::classical(m.send_id, &[0xFC])
+                .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
         }
         fn encode_disable(&self, m: MotorRef<'_>) -> Result<CanFrame, CodecError> {
-            CanFrame::classical(m.send_id, &[0xFD]).map_err(|_| CodecError::DecodeFailed {
-                reason: "frame",
-            })
+            CanFrame::classical(m.send_id, &[0xFD])
+                .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
         }
         fn encode_set_zero(&self, m: MotorRef<'_>) -> Result<CanFrame, CodecError> {
-            CanFrame::classical(m.send_id, &[0xFE]).map_err(|_| CodecError::DecodeFailed {
-                reason: "frame",
-            })
+            CanFrame::classical(m.send_id, &[0xFE])
+                .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
         }
-        fn encode_command(
-            &self,
-            m: MotorRef<'_>,
-            _: &Command,
-        ) -> Result<CanFrame, CodecError> {
-            CanFrame::classical(m.send_id, &[0x55]).map_err(|_| CodecError::DecodeFailed {
-                reason: "frame",
-            })
+        fn encode_command(&self, m: MotorRef<'_>, _: &Command) -> Result<CanFrame, CodecError> {
+            CanFrame::classical(m.send_id, &[0x55])
+                .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
         }
         fn decode(&self, _: &CanFrame) -> Result<Option<Event>, CodecError> {
             Ok(None)
@@ -759,12 +754,7 @@ mod integration_tests {
 
     #[test]
     fn not_connected_when_bus_not_attached() {
-        let motors = vec![Motor::new(
-            "g".into(),
-            MotorTypeId::Damiao(3),
-            0x05,
-            0x18,
-        )];
+        let motors = vec![Motor::new("g".into(), MotorTypeId::Damiao(3), 0x05, 0x18)];
         let mut group = MotorGroup::new("g".into(), "main".into(), motors);
         let r = group.enable_all();
         assert!(matches!(r, Err(Error::NotConnected)));

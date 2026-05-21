@@ -29,12 +29,12 @@ impl DamiaoCodec {
 
     fn motor_type(&self, id: MotorTypeId) -> Result<DamiaoMotorType, CodecError> {
         match id {
-            MotorTypeId::Damiao(d) => DamiaoMotorType::from_discriminant(d).ok_or(
-                CodecError::UnknownMotorType {
+            MotorTypeId::Damiao(d) => {
+                DamiaoMotorType::from_discriminant(d).ok_or(CodecError::UnknownMotorType {
                     vendor: VENDOR,
                     type_id: d,
-                },
-            ),
+                })
+            }
             _ => Err(CodecError::UnknownMotorType {
                 vendor: VENDOR,
                 type_id: 0,
@@ -86,11 +86,7 @@ impl MotorCodec for DamiaoCodec {
         self.encode_special(motor, 0xFE)
     }
 
-    fn encode_command(
-        &self,
-        motor: MotorRef<'_>,
-        cmd: &Command,
-    ) -> Result<CanFrame, CodecError> {
+    fn encode_command(&self, motor: MotorRef<'_>, cmd: &Command) -> Result<CanFrame, CodecError> {
         let t = self.motor_type(motor.motor_type)?;
         let lim = limits_for(t);
         match cmd {
@@ -100,13 +96,10 @@ impl MotorCodec for DamiaoCodec {
                 check_range("tau", *tau, lim.t_max)?;
                 check_unsigned("kp", *kp, 500.0)?;
                 check_unsigned("kd", *kd, 5.0)?;
-                let payload = pack_mit_payload(
-                    *q, *dq, *kp, *kd, *tau, lim.p_max, lim.v_max, lim.t_max,
-                );
-                CanFrame::classical(motor.send_id, &payload).map_err(|_| {
-                    CodecError::DecodeFailed {
-                        reason: "MIT frame construction failed",
-                    }
+                let payload =
+                    pack_mit_payload(*q, *dq, *kp, *kd, *tau, lim.p_max, lim.v_max, lim.t_max);
+                CanFrame::classical(motor.send_id, &payload).map_err(|_| CodecError::DecodeFailed {
+                    reason: "MIT frame construction failed",
                 })
             }
             Command::PosVel { q, dq } => {
@@ -178,12 +171,13 @@ impl MotorCodec for DamiaoCodec {
         // v1, so it uses DM4340 limits as the OpenArm walking-skeleton default.
         // A future change will register per-motor limits at bind time so mixed-
         // SKU buses decode each motor with its own limits.
-        let payload: [u8; 8] = frame
-            .payload()
-            .try_into()
-            .map_err(|_| CodecError::DecodeFailed {
-                reason: "expected 8-byte payload",
-            })?;
+        let payload: [u8; 8] =
+            frame
+                .payload()
+                .try_into()
+                .map_err(|_| CodecError::DecodeFailed {
+                    reason: "expected 8-byte payload",
+                })?;
         let dm = limits_for(DamiaoMotorType::DM4340);
         let (_, _, q, dq, tau, t_mos, t_rotor) =
             unpack_state_payload(&payload, dm.p_max, dm.v_max, dm.t_max);
@@ -270,7 +264,10 @@ mod tests {
         let e = c.encode_enable(m).unwrap();
         assert_eq!(e.id, 0x05);
         assert_eq!(e.len, 8);
-        assert_eq!(e.payload(), &[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFC]);
+        assert_eq!(
+            e.payload(),
+            &[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFC]
+        );
 
         let d = c.encode_disable(m).unwrap();
         assert_eq!(d.payload()[7], 0xFD);

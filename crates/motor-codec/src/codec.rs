@@ -48,11 +48,7 @@ pub trait MotorCodec: Send + Sync {
     fn encode_set_zero(&self, motor: MotorRef<'_>) -> Result<CanFrame, CodecError>;
 
     /// Encode a control-mode command.
-    fn encode_command(
-        &self,
-        motor: MotorRef<'_>,
-        cmd: &Command,
-    ) -> Result<CanFrame, CodecError>;
+    fn encode_command(&self, motor: MotorRef<'_>, cmd: &Command) -> Result<CanFrame, CodecError>;
 
     /// Decode an inbound frame.
     ///
@@ -133,11 +129,7 @@ mod tests {
         fn encode_set_zero(&self, _: MotorRef<'_>) -> Result<CanFrame, CodecError> {
             Err(CodecError::DecodeFailed { reason: "stub" })
         }
-        fn encode_command(
-            &self,
-            _: MotorRef<'_>,
-            _: &Command,
-        ) -> Result<CanFrame, CodecError> {
+        fn encode_command(&self, _: MotorRef<'_>, _: &Command) -> Result<CanFrame, CodecError> {
             Err(CodecError::DecodeFailed { reason: "stub" })
         }
         fn decode(&self, _: &CanFrame) -> Result<Option<Event>, CodecError> {

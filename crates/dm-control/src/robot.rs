@@ -8,7 +8,7 @@ use mio::Token;
 
 use crate::bus::{Bus, RouteKey};
 use crate::error::Error;
-use crate::group::{Arm, Generic, GroupKind, Gripper, MotorGroup};
+use crate::group::{Arm, Generic, Gripper, GroupKind, MotorGroup};
 use crate::motor::Motor;
 use crate::spec::{GroupSpecKind, MotorSpec};
 use crate::transport::{BusPoller, CanBus};
@@ -101,7 +101,9 @@ impl Robot {
         let mut bus_tokens = HashMap::with_capacity(self.buses.len());
         let mut token_to_bus = HashMap::with_capacity(self.buses.len());
         for (idx, bus_name) in self.bus_order.iter().enumerate() {
-            let bus = self.buses[bus_name].lock().map_err(|_| Error::BusPoisoned)?;
+            let bus = self.buses[bus_name]
+                .lock()
+                .map_err(|_| Error::BusPoisoned)?;
             if let Some(fd) = bus.transport.raw_fd() {
                 let token = Token(idx);
                 poller.register(token, fd)?;
@@ -453,28 +455,20 @@ mod tests {
             self.binds.fetch_add(1, Ordering::SeqCst);
         }
         fn encode_enable(&self, m: MotorRef<'_>) -> Result<CanFrame, CodecError> {
-            CanFrame::classical(m.send_id, &[0xFC]).map_err(|_| CodecError::DecodeFailed {
-                reason: "frame",
-            })
+            CanFrame::classical(m.send_id, &[0xFC])
+                .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
         }
         fn encode_disable(&self, m: MotorRef<'_>) -> Result<CanFrame, CodecError> {
-            CanFrame::classical(m.send_id, &[0xFD]).map_err(|_| CodecError::DecodeFailed {
-                reason: "frame",
-            })
+            CanFrame::classical(m.send_id, &[0xFD])
+                .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
         }
         fn encode_set_zero(&self, m: MotorRef<'_>) -> Result<CanFrame, CodecError> {
-            CanFrame::classical(m.send_id, &[0xFE]).map_err(|_| CodecError::DecodeFailed {
-                reason: "frame",
-            })
+            CanFrame::classical(m.send_id, &[0xFE])
+                .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
         }
-        fn encode_command(
-            &self,
-            m: MotorRef<'_>,
-            _: &Command,
-        ) -> Result<CanFrame, CodecError> {
-            CanFrame::classical(m.send_id, &[0x55]).map_err(|_| CodecError::DecodeFailed {
-                reason: "frame",
-            })
+        fn encode_command(&self, m: MotorRef<'_>, _: &Command) -> Result<CanFrame, CodecError> {
+            CanFrame::classical(m.send_id, &[0x55])
+                .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
         }
         fn decode(&self, frame: &CanFrame) -> Result<Option<Event>, CodecError> {
             self.decodes.fetch_add(1, Ordering::SeqCst);
@@ -501,7 +495,11 @@ mod tests {
         let (codec, binds, _) = CountingCodec::new();
         let robot = RobotBuilder::new()
             .add_bus("main", Box::new(MockCanBus::new("m")), Box::new(codec))
-            .add_arm("arm", "main", vec![motor("j0", 0x01, 0x11), motor("j1", 0x02, 0x12)])
+            .add_arm(
+                "arm",
+                "main",
+                vec![motor("j0", 0x01, 0x11), motor("j1", 0x02, 0x12)],
+            )
             .build()
             .unwrap();
         assert_eq!(robot.bus_names().collect::<Vec<_>>(), vec!["main"]);
@@ -547,18 +545,10 @@ mod tests {
             .add_arm(
                 "arm",
                 "main",
-                vec![MotorSpec::new(
-                    "j0",
-                    MotorTypeId::Robostride(0),
-                    0x01,
-                    0x11,
-                )],
+                vec![MotorSpec::new("j0", MotorTypeId::Robostride(0), 0x01, 0x11)],
             )
             .build();
-        assert!(matches!(
-            r,
-            Err(Error::MotorNotSupportedByCodec { .. })
-        ));
+        assert!(matches!(r, Err(Error::MotorNotSupportedByCodec { .. })));
     }
 
     #[test]
@@ -696,10 +686,7 @@ mod tests {
         // MockCanBus has no fd, so poller is empty and tick returns essentially
         // immediately (the BusPoller wait still respects deadline; here it has
         // no fds so it returns 0-token vec immediately).
-        assert!(
-            elapsed < Duration::from_millis(50),
-            "tick took {elapsed:?}"
-        );
+        assert!(elapsed < Duration::from_millis(50), "tick took {elapsed:?}");
     }
 
     /// Source grep: no group method body calls drain_inbound_nonblocking.

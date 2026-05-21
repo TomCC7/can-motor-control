@@ -115,7 +115,9 @@ bus = "main"
 motors = []
 "#;
     let r = Robot::from_config_str(toml, &registry());
-    assert!(matches!(r, Err(Error::ConfigSchema(ref s)) if s.contains("enable_speed") || s.contains("unknown field")));
+    assert!(
+        matches!(r, Err(Error::ConfigSchema(ref s)) if s.contains("enable_speed") || s.contains("unknown field"))
+    );
 }
 
 #[test]

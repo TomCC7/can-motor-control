@@ -20,7 +20,9 @@ pub mod transport;
 pub use bus::{Bus, RouteKey};
 pub use config::{CodecFactory, CodecRegistry, MotorTypeParser};
 pub use error::Error;
-pub use group::{Arm, Generic, GroupKind, Gripper, MitCmd, MotorGroup, PosForceCmd, PosVelCmd, VelCmd};
+pub use group::{
+    Arm, Generic, Gripper, GroupKind, MitCmd, MotorGroup, PosForceCmd, PosVelCmd, VelCmd,
+};
 pub use motor::{FaultCode, Motor};
 pub use robot::{Robot, RobotBuilder};
 pub use spec::{GroupSpecKind, MotorSpec};

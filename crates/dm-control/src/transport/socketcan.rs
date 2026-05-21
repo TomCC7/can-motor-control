@@ -276,13 +276,8 @@ impl CanBus for SocketCanBus {
         loop {
             // SAFETY: read() into an owned buffer; the returned count is the
             // exact bytes filled.
-            let n = unsafe {
-                libc::read(
-                    raw,
-                    buf.as_mut_ptr() as *mut libc::c_void,
-                    KERNEL_FD_LEN,
-                )
-            };
+            let n =
+                unsafe { libc::read(raw, buf.as_mut_ptr() as *mut libc::c_void, KERNEL_FD_LEN) };
             if n < 0 {
                 let err = io::Error::last_os_error();
                 match err.raw_os_error() {
@@ -329,12 +324,7 @@ pub(crate) fn decode_kernel_classical(buf: &[u8; KERNEL_FD_LEN]) -> CanFrame {
     let kf = unsafe { &*(buf.as_ptr() as *const KernelCanFrame) };
     let extended = kf.can_id & CAN_EFF_FLAG != 0;
     let rtr = kf.can_id & CAN_RTR_FLAG != 0;
-    let id = kf.can_id
-        & if extended {
-            CAN_EFF_MASK
-        } else {
-            CAN_SFF_MASK
-        };
+    let id = kf.can_id & if extended { CAN_EFF_MASK } else { CAN_SFF_MASK };
     let len = kf.can_dlc.min(8);
     let mut flags = FrameFlags::empty();
     if extended {
@@ -357,12 +347,7 @@ pub(crate) fn decode_kernel_classical(buf: &[u8; KERNEL_FD_LEN]) -> CanFrame {
 pub(crate) fn decode_kernel_fd(buf: &[u8; KERNEL_FD_LEN]) -> CanFrame {
     let kf = unsafe { &*(buf.as_ptr() as *const KernelCanFdFrame) };
     let extended = kf.can_id & CAN_EFF_FLAG != 0;
-    let id = kf.can_id
-        & if extended {
-            CAN_EFF_MASK
-        } else {
-            CAN_SFF_MASK
-        };
+    let id = kf.can_id & if extended { CAN_EFF_MASK } else { CAN_SFF_MASK };
     let len = kf.len.min(64);
     let mut flags = FrameFlags::FD_FORMAT;
     if extended {

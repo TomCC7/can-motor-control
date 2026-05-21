@@ -37,10 +37,7 @@ fn full_loop_against_mock() {
     ];
     for _ in 0..100 {
         robot.tick(deadline).expect("tick");
-        let arm = robot
-            .group_mut("arm")
-            .and_then(|g| g.as_arm_mut())
-            .unwrap();
+        let arm = robot.group_mut("arm").and_then(|g| g.as_arm_mut()).unwrap();
         arm.mit_control(&cmds).expect("mit_control");
     }
 

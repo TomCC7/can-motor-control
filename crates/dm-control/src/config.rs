@@ -155,17 +155,17 @@ impl Robot {
         for (bus_name, bus_cfg) in bus_entries {
             let transport: Box<dyn CanBus> = match bus_cfg.kind.as_str() {
                 "socketcan" => {
-                    let iface = bus_cfg
-                        .interface
-                        .ok_or_else(|| Error::ConfigSchema(format!(
+                    let iface = bus_cfg.interface.ok_or_else(|| {
+                        Error::ConfigSchema(format!(
                             "bus '{bus_name}': socketcan kind requires 'interface' field"
-                        )))?;
+                        ))
+                    })?;
                     Box::new(SocketCanBus::open(&iface, bus_cfg.fd)?)
                 }
                 other => {
                     return Err(Error::ConfigSchema(format!(
                         "bus '{bus_name}': unsupported kind '{other}' (v1 supports only 'socketcan')"
-                    )))
+                    )));
                 }
             };
             let codec = registry

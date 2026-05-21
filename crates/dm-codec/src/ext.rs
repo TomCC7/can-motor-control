@@ -24,12 +24,7 @@ pub trait DamiaoCodecExt {
     fn encode_read_param(&self, motor: MotorRef<'_>, rid: DamiaoRid) -> CanFrame;
 
     /// Encode a "write parameter" frame (command byte `0x55`).
-    fn encode_write_param(
-        &self,
-        motor: MotorRef<'_>,
-        rid: DamiaoRid,
-        val: ParamValue,
-    ) -> CanFrame;
+    fn encode_write_param(&self, motor: MotorRef<'_>, rid: DamiaoRid, val: ParamValue) -> CanFrame;
 
     /// Encode a "save settings to flash" frame (command byte `0xAA`).
     fn encode_save_to_flash(&self, motor: MotorRef<'_>) -> CanFrame;
@@ -56,12 +51,7 @@ impl DamiaoCodecExt for DamiaoCodec {
         CanFrame::classical(PARAM_ID, &payload).expect("8-byte classical frame")
     }
 
-    fn encode_write_param(
-        &self,
-        motor: MotorRef<'_>,
-        rid: DamiaoRid,
-        val: ParamValue,
-    ) -> CanFrame {
+    fn encode_write_param(&self, motor: MotorRef<'_>, rid: DamiaoRid, val: ParamValue) -> CanFrame {
         let mut payload = [0u8; 8];
         payload[0..4].copy_from_slice(&header(motor, CMD_WRITE, rid));
         match val {
