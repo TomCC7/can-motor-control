@@ -43,11 +43,40 @@ crates/
   dm-control/       # std, transport (SocketCAN) + Robot/Group/Motor + builder
   dm-control-py/    # PyO3 bindings, built by maturin
 configs/            # example TOML robot configs
-examples/           # one Rust + one Python example
+examples/           # Python hardware bring-up ladder (00_-08_) + Rust example
 tests/python/       # Python smoke + integration tests
 docs/               # architecture + multi-vendor + CAN-FD notes
 openspec/           # source of truth: proposals, designs, specs, tasks
 ```
+
+## Hardware bring-up examples
+
+Real hardware bring-up should be done by walking the `examples/00_*` ->
+`examples/08_*` ladder in order. Each step adds exactly one kind of risk;
+do not skip steps when bringing up an arm for the first time. Mock and
+`MockCanBus`-driven tests prove the API surface and CI wiring, **not**
+that real hardware will respond correctly.
+
+| Example                                | Sends                  | Hardware required             |
+| -------------------------------------- | ---------------------- | ----------------------------- |
+| `00_can_interface_check.py`            | nothing                | none (checks `/sys/class/net`) |
+| `01_single_motor_enable_disable.py`    | enable + disable       | one powered motor             |
+| `02_single_motor_read_state.py`        | enable + reads + disable | one powered motor           |
+| `03_single_motor_mit_hold.py`          | bounded MIT hold       | one powered motor             |
+| `04_single_motor_control_modes.py`     | one bounded mode/run   | one powered motor             |
+| `05_single_arm_state_monitor.py`       | enable + reads + disable | configured arm              |
+| `06_single_arm_mit_hold.py`            | bounded MIT hold       | configured arm                |
+| `07_gripper_control.py`                | gripper MIT or PosVel  | one gripper motor             |
+| `08_set_zero_calibration.py`           | `set_zero` (PERSISTENT) | configured arm or single motor |
+
+Each example prints its assumptions before sending anything and disables
+on exit. Durations are hard-capped; the calibration step refuses to act
+without an explicit `--i-understand-this-writes-zero` flag.
+
+For first-time setup of a Linux SocketCAN interface, see
+[`docs/socketcan-setup.md`](./docs/socketcan-setup.md). `examples/dev_api_smoke.py`
+is the developer API smoke test (formerly `single_arm.py`); it accepts
+`--mock` and is **not** a hardware bring-up example.
 
 ## Source of truth
 

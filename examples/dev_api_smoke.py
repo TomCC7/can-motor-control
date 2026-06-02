@@ -1,9 +1,17 @@
-"""End-to-end Python example: 10-second 1 kHz MIT control loop on a single
-Damiao arm. Uses --mock for CI; --interface vcan0 for real hardware.
+"""Developer-only API smoke test. NOT a hardware bring-up example.
+
+Runs a 1 kHz MIT control loop against a four-motor arm over MockCanBus
+(`--mock`) or SocketCAN (`--interface vcan0`). This exists to exercise the
+Python API surface end-to-end; mock execution proves shape and wiring, NOT
+that real hardware will respond correctly.
+
+For real hardware bring-up, see the `00_`–`08_` examples in `examples/`.
+They add risk one step at a time (interface check -> single motor -> arm ->
+calibration) and are the supported path for first-time hardware testing.
 
 Usage:
-    python examples/single_arm.py --mock
-    python examples/single_arm.py --interface vcan0
+    python examples/dev_api_smoke.py --mock
+    python examples/dev_api_smoke.py --interface vcan0
 """
 
 import argparse
