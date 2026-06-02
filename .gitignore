@@ -12,3 +12,5 @@ dist/
 .pytest_cache/
 .mypy_cache/
 *.so
+.opencode
+.sisyphus
