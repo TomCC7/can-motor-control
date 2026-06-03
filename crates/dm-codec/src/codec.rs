@@ -155,18 +155,8 @@ impl MotorCodec for DamiaoCodec {
             // Damiao always uses 8 bytes; a different length is not a Damiao state frame.
             return Ok(None);
         }
-        // Damiao state response byte 0 layout (per cmjang `__process_packet`):
-        //   high nibble = err code (0 = no fault)
-        //   low nibble  = cmd_id triggering this response (1=MIT, 2=PosVel,
-        //                 3=Vel, 4=PosForce). Other low-nibble values are not
-        //                 control-mode state responses (e.g. parameter sub-
-        //                 protocol replies on 0x7FF).
         let byte0 = frame.payload()[0];
-        let cmd_id = byte0 & 0x0f;
-        let err = (byte0 >> 4) & 0x0f;
-        if !matches!(cmd_id, 1..=6) {
-            return Ok(None);
-        }
+        let reported_id = byte0 & 0x0f;
         // Limits: the codec doesn't have a per-recv_id motor-type registry in
         // v1, so it uses DM4340 limits as the OpenArm walking-skeleton default.
         // A future change will register per-motor limits at bind time so mixed-
@@ -181,11 +171,8 @@ impl MotorCodec for DamiaoCodec {
         let dm = limits_for(DamiaoMotorType::DM4340);
         let (_, _, q, dq, tau, t_mos, t_rotor) =
             unpack_state_payload(&payload, dm.p_max, dm.v_max, dm.t_max);
-        if err != 0 {
-            return Ok(Some(Event::Fault {
-                motor_id: frame.id,
-                code: err as u16,
-            }));
+        if reported_id == 0 && frame.id == 0 {
+            return Ok(None);
         }
         Ok(Some(Event::State {
             motor_id: frame.id,
@@ -357,12 +344,7 @@ mod tests {
     #[test]
     fn decode_foreign_frame_returns_none() {
         let c = DamiaoCodec::new();
-        // byte 0 low nibble = 0 means cmd_id 0, outside the 1..=6 control-mode
-        // response range, so this frame is not a Damiao state response.
-        let f = CanFrame::classical(0x11, &[0x00; 8]).unwrap();
-        assert!(matches!(c.decode(&f), Ok(None)));
-        // 0x99 in byte 0 → cmd_id = 9, also outside the response range.
-        let f = CanFrame::classical(0x11, &[0x99, 0, 0, 0, 0, 0, 0, 0]).unwrap();
+        let f = CanFrame::classical(0x00, &[0x00; 8]).unwrap();
         assert!(matches!(c.decode(&f), Ok(None)));
     }
 
@@ -410,6 +392,32 @@ mod tests {
                 assert_eq!(t_rotor, 35);
             }
             _ => panic!("expected State"),
+        }
+    }
+
+    #[test]
+    fn decode_dm4310_enable_disable_replies_from_socketcan_capture() {
+        let c = DamiaoCodec::new();
+        for payload in [
+            [0x18, 0x81, 0x07, 0x7F, 0xE7, 0xFF, 0x1D, 0x1B],
+            [0x08, 0x81, 0x07, 0x80, 0x07, 0xFF, 0x1D, 0x1B],
+        ] {
+            match c
+                .decode(&CanFrame::classical(0x18, &payload).unwrap())
+                .unwrap()
+            {
+                Some(Event::State {
+                    motor_id,
+                    t_mos,
+                    t_rotor,
+                    ..
+                }) => {
+                    assert_eq!(motor_id, 0x18);
+                    assert_eq!(t_mos, 29);
+                    assert_eq!(t_rotor, 27);
+                }
+                other => panic!("expected State, got {other:?}"),
+            }
         }
     }
 

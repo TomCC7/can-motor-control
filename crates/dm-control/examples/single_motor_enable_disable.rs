@@ -216,11 +216,14 @@ fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         .ok_or("missing j0 after run")?;
     println!("ticked {ticks} times");
     println!(
-        "motor j0: enabled={} pos={:.4} vel={:.4} tau={:.4}",
+        "motor j0: enabled={} pos={:.4} vel={:.4} tau={:.4} t_mos={} t_rotor={} fault={:?}",
         motor.is_enabled(),
         motor.position(),
         motor.velocity(),
-        motor.torque()
+        motor.torque(),
+        motor.temperature_mos(),
+        motor.temperature_rotor(),
+        motor.fault()
     );
     println!("done.");
 
