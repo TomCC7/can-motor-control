@@ -63,3 +63,9 @@
 - [x] 9.2 Test: run the Rust interface check help/missing-interface path and verify it exits with a clear diagnostic before opening a socket.
 - [x] 9.3 Impl: add `crates/dm-control/examples/single_motor_enable_disable.rs` mirroring Python tier 1, building one motor from explicit IDs, connecting, enabling, bounded ticking, disabling, and printing assumptions before acting.
 - [x] 9.4 Test: build/check the Rust examples and run the single-motor example help path without touching hardware.
+- [x] 9.5 Impl: add `crates/dm-control/examples/single_motor_mit_hold.rs` mirroring Python tier 2, with conservative MIT defaults, bounded runtime, and disable-on-exit behavior.
+- [x] 9.6 Test: build/check the Rust MIT hold example and run help/bad-input paths without touching hardware.
+- [x] 9.7 Impl: add `crates/dm-control/examples/gripper_control.rs` mirroring Python tier 3, using only current Rust gripper `enable`, `disable`, `mit_control`, and `pos_vel_control` operations.
+- [x] 9.8 Test: build/check the Rust gripper example and run help/bad-input paths without touching hardware.
+- [x] 9.9 Impl: add Rust gripper PosForce support and `crates/dm-control/examples/gripper_posforce.rs`, following only openarm_can's fixed `π/2 → 0 → π/2 → 0` sequence with speed/current defaults.
+- [x] 9.10 Test: build/check the Rust gripper PosForce example and run help/bad-input paths without touching hardware.

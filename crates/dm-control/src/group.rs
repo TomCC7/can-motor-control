@@ -378,6 +378,10 @@ impl Gripper {
     pub fn pos_vel_control(&mut self, cmd: PosVelCmd) -> Result<(), Error> {
         self.0.send_command(0, cmd.into())
     }
+    /// Single PosForce command to the gripper motor.
+    pub fn pos_force_control(&mut self, cmd: PosForceCmd) -> Result<(), Error> {
+        self.0.send_command(0, cmd.into())
+    }
 
     /// Borrow the underlying [`MotorGroup`].
     pub fn inner(&self) -> &MotorGroup {
