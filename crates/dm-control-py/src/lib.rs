@@ -25,11 +25,44 @@ use robot::{PyArm, PyGripper, PyMotor, PyMotorGroup, PyRobot, PyRobotBuilder};
 use spec::PyMotorSpec;
 use transport::{PyMockCanBus, PySocketCanBus};
 
-create_exception!(_native, DmError, PyException);
-create_exception!(_native, TransportError, DmError);
-create_exception!(_native, CodecError, DmError);
-create_exception!(_native, ConfigError, DmError);
-create_exception!(_native, LifecycleError, DmError);
+// The module argument sets each exception's `__module__`. Use `dm_control`
+// (the public package the exceptions are re-exported from and imported as), not
+// `_native`, so it matches the `module = "dm_control"` on the `#[pyclass]`
+// types — a consistent `__module__` is what lets doc tooling (griffe) resolve
+// the re-exports without a dangling bare-`_native` target.
+create_exception!(
+    dm_control,
+    DmError,
+    PyException,
+    "Base class for every error raised by ``dm_control``.\n\nCatch this to handle any failure from the library regardless of cause."
+);
+create_exception!(
+    dm_control,
+    TransportError,
+    DmError,
+    "A CAN transport operation failed (e.g. the SocketCAN interface is down, \
+a send/receive timed out, or a frame was malformed)."
+);
+create_exception!(
+    dm_control,
+    CodecError,
+    DmError,
+    "A motor frame could not be encoded or decoded by the vendor codec."
+);
+create_exception!(
+    dm_control,
+    ConfigError,
+    DmError,
+    "The robot configuration is invalid: bad config file, unknown vendor, \
+unknown bus name, or an unsupported option such as CAN-FD in v1."
+);
+create_exception!(
+    dm_control,
+    LifecycleError,
+    DmError,
+    "An operation was attempted in the wrong lifecycle state, such as ticking \
+before `Robot.connect` or mutating topology after the robot is built."
+);
 
 #[pymodule]
 fn _native(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {

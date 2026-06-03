@@ -27,6 +27,12 @@ impl TransportHandle {
     }
 }
 
+/// An in-memory CAN bus for tests and dry runs.
+///
+/// Drop-in replacement for `SocketCanBus` that talks to no hardware,
+/// so robot code can be exercised without a real CAN interface. Pass it to
+/// `RobotBuilder.add_bus`. A bus is consumed by the builder and may
+/// be added to only one robot.
 #[pyclass(name = "MockCanBus", module = "dm_control")]
 pub struct PyMockCanBus {
     pub(crate) handle: TransportHandle,
@@ -34,6 +40,7 @@ pub struct PyMockCanBus {
 
 #[pymethods]
 impl PyMockCanBus {
+    /// Create a mock bus identified by ``name`` (used in error messages).
     #[new]
     fn new(name: &str) -> Self {
         Self {
@@ -42,6 +49,12 @@ impl PyMockCanBus {
     }
 }
 
+/// A CAN bus backed by a Linux SocketCAN interface.
+///
+/// Opens ``interface`` (e.g. ``"can0"``) on construction; a failure to open
+/// raises `TransportError`. Pass it to
+/// `RobotBuilder.add_bus`. A bus is consumed by the builder and may
+/// be added to only one robot.
 #[pyclass(name = "SocketCanBus", module = "dm_control")]
 pub struct PySocketCanBus {
     pub(crate) handle: TransportHandle,
@@ -49,6 +62,11 @@ pub struct PySocketCanBus {
 
 #[pymethods]
 impl PySocketCanBus {
+    /// Open SocketCAN ``interface``.
+    ///
+    /// Set ``fd=True`` to open the interface in CAN-FD mode (the interface
+    /// itself must be FD-capable). Raises `TransportError` if the
+    /// interface cannot be opened.
     #[new]
     #[pyo3(signature = (interface, *, fd=false))]
     fn new(py: Python<'_>, interface: &str, fd: bool) -> PyResult<Self> {

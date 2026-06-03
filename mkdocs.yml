@@ -1,0 +1,71 @@
+site_name: dm_control
+site_description: Rust-backed control library for Damiao-family CAN motors
+repo_url: https://github.com/cc/dm_control_rs
+docs_dir: docs
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - content.code.annotate
+  palette:
+    - scheme: default
+      primary: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          # The package lives here; after `maturin develop` it is also
+          # importable from the active environment, which is what lets griffe
+          # read the docstrings PyO3 bakes into the compiled `_native` module.
+          paths: [crates/dm-control-py/python]
+          options:
+            # Import the built extension so the runtime __doc__ (authored as
+            # Rust `///` comments) is the source of the rendered prose — the
+            # same text `help()` shows. Without this, griffe would only see the
+            # signature-only `.pyi` stubs and render no descriptions.
+            force_inspection: true
+            # The public package re-exports its classes from the compiled
+            # `dm_control._native` module (`from dm_control._native import ...`).
+            # Preload it so griffe inspect-loads the compiled module and those
+            # re-export aliases (e.g. dm_control.Robot -> _native.Robot) resolve.
+            preload_modules:
+              - dm_control._native
+            docstring_style: google
+            show_source: false
+            show_root_heading: true
+            show_root_full_path: false
+            members_order: source
+            separate_signature: true
+            show_signature_annotations: true
+            merge_init_into_class: true
+            filters: ["!^_"]
+
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+
+nav:
+  - Home: index.md
+  - Guides:
+      - SocketCAN setup: socketcan-setup.md
+      - CAN-FD: can-fd.md
+      - Multi-vendor: multi-vendor.md
+  - Python API: reference.md
+  - Rust API: rust.md

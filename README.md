@@ -78,6 +78,31 @@ For first-time setup of a Linux SocketCAN interface, see
 is the developer API smoke test (formerly `single_arm.py`); it accepts
 `--mock` and is **not** a hardware bring-up example.
 
+## Documentation
+
+A local docs site (Python API reference + the guides under `docs/`) is built
+with MkDocs. The Python API prose is generated from the package's docstrings,
+so the native extension is built first. The environment is managed by
+[uv](https://docs.astral.sh/uv/) and pinned by `uv.lock` for reproducibility
+(the root `pyproject.toml` is a dev-only environment, not a published package).
+
+```bash
+# Serve with live reload at http://127.0.0.1:8000
+make docs
+
+# Or render a static site into ./site
+make docs-build
+```
+
+Both targets run `uv sync --reinstall-package dm_control` first, which builds
+the extension (editable, via maturin) and installs the locked docs toolchain,
+then invoke MkDocs. No separate virtualenv or `pip install` step is needed —
+uv provisions everything from `uv.lock`. The same two-step flow ports directly
+to CI later (`uv sync --frozen` + `uv run mkdocs build`).
+
+The Rust crates are documented separately with rustdoc:
+`cargo doc --no-deps --workspace --open`.
+
 ## Source of truth
 
 The architecture, every requirement, and the implementation plan live under [`openspec/`](./openspec). New features should propose changes there first.

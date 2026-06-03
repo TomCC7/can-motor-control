@@ -9,6 +9,7 @@ build/
 dist/
 *.whl
 .venv/
+site/
 .pytest_cache/
 .mypy_cache/
 *.so

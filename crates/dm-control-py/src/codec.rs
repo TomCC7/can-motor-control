@@ -24,6 +24,12 @@ impl CodecHandle {
     }
 }
 
+/// The Damiao protocol codec.
+///
+/// Encodes commands to and decodes feedback from Damiao-family motors. Pass an
+/// instance to `RobotBuilder.add_bus` to bind a bus to the Damiao
+/// protocol. A codec is consumed by the builder and may be added to only one
+/// bus.
 #[pyclass(name = "DamiaoCodec", module = "dm_control.damiao")]
 pub struct PyDamiaoCodec {
     pub(crate) handle: CodecHandle,
@@ -31,6 +37,7 @@ pub struct PyDamiaoCodec {
 
 #[pymethods]
 impl PyDamiaoCodec {
+    /// Create a Damiao codec.
     #[new]
     fn new() -> Self {
         Self {
@@ -39,7 +46,12 @@ impl PyDamiaoCodec {
     }
 }
 
-/// Damiao motor SKU enum exposed as an IntEnum-compatible Python class.
+/// Damiao motor SKU identifiers.
+///
+/// An ``IntEnum``-compatible class naming each supported Damiao motor model
+/// (e.g. ``DM4310``, ``DM8009``). Pass a member as the ``type`` of a
+/// `dm_control.MotorSpec` so the codec applies the right limits and
+/// scaling for that model.
 #[pyclass(name = "MotorType", module = "dm_control.damiao", eq, eq_int, frozen)]
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]

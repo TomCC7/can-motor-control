@@ -16,6 +16,14 @@ classifiers = [
 dependencies = ["numpy>=1.24"]
 dynamic = ["version"]
 
+[project.optional-dependencies]
+# Documentation toolchain. Dev-only: never pulled in by a plain
+# `pip install dm_control`, only by `pip install '.[docs]'`.
+docs = [
+  "mkdocs-material>=9.5",
+  "mkdocstrings[python]>=0.26",
+]
+
 [tool.maturin]
 features = ["pyo3/extension-module"]
 module-name = "dm_control._native"

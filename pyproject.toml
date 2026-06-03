@@ -1,0 +1,22 @@
+# Root dev/docs environment for the workspace. This is NOT a published package;
+# it exists so `uv sync` provisions a reproducible environment (pinned by
+# uv.lock) that builds the `dm_control` extension and installs the docs
+# toolchain in one step. See the README "Documentation" section.
+[project]
+name = "dm-control-dev"
+version = "0"
+description = "Local dev/docs environment for dm_control (not published)."
+requires-python = ">=3.10"
+dependencies = [
+    # The extension plus its `docs` extra (mkdocs-material, mkdocstrings) — the
+    # crate's pyproject.toml is the single source of truth for the tool list.
+    "dm_control[docs]",
+]
+
+[tool.uv]
+# This root project is an environment, not a distributable package.
+package = false
+
+[tool.uv.sources]
+# Build the local extension editable, via maturin, as part of `uv sync`.
+dm_control = { path = "crates/dm-control-py", editable = true }
