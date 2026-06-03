@@ -26,17 +26,20 @@ Usage:\n\
 \n\
 Options:\n\
   --interface <iface>  SocketCAN interface name (default: can0)\n\
+  --fd                 Assume a CAN-FD bus (adjusts the wire-format notes)\n\
   -h, --help          Print this help text"
     );
 }
 
-fn parse_args() -> Result<Option<String>, String> {
+fn parse_args() -> Result<Option<(String, bool)>, String> {
     let mut interface = DEFAULT_INTERFACE.to_string();
+    let mut fd = false;
     let mut args = env::args().skip(1);
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "-h" | "--help" => return Ok(None),
+            "--fd" => fd = true,
             "--interface" => {
                 interface = args
                     .next()
@@ -46,25 +49,30 @@ fn parse_args() -> Result<Option<String>, String> {
         }
     }
 
-    Ok(Some(interface))
+    Ok(Some((interface, fd)))
 }
 
-fn print_assumptions(interface: &str) {
+fn print_assumptions(interface: &str, fd: bool) {
     println!("=== Rust 00 CAN interface check ===");
     println!("  - interface         : {interface}");
     println!("  - sends CAN frames? : no -- this example never opens the bus");
     println!("  - hardware required : none");
     println!();
-    println!("  dm_control v1 assumes classical CAN (no CAN-FD).");
-    println!("  Confirm the bus is up at the expected bitrate (commonly 1 Mbit/s)");
-    println!("  and that `candump {interface}` shows traffic before powering motors.");
+    if fd {
+        println!("  Target is a CAN-FD bus; the interface must be FD-capable.");
+        println!("  Confirm the bus is up and `candump {interface}` shows traffic before powering motors.");
+    } else {
+        println!("  Target is classical CAN (pass --fd for a CAN-FD bus).");
+        println!("  Confirm the bus is up at the expected bitrate (commonly 1 Mbit/s)");
+        println!("  and that `candump {interface}` shows traffic before powering motors.");
+    }
     println!("===================================");
     let _ = io::stdout().flush();
 }
 
 fn main() -> ExitCode {
-    let interface = match parse_args() {
-        Ok(Some(interface)) => interface,
+    let (interface, fd) = match parse_args() {
+        Ok(Some(parsed)) => parsed,
         Ok(None) => {
             print_help();
             return ExitCode::SUCCESS;
@@ -76,7 +84,7 @@ fn main() -> ExitCode {
         }
     };
 
-    print_assumptions(&interface);
+    print_assumptions(&interface, fd);
 
     let sysfs_path = format!("/sys/class/net/{interface}");
     if !Path::new(&sysfs_path).exists() {
@@ -84,6 +92,9 @@ fn main() -> ExitCode {
         eprintln!("  * For a real interface, plug in the adapter and check `dmesg`.");
         eprintln!("  * For a virtual interface, set it up with:");
         eprintln!("      sudo ip link add dev {interface} type vcan");
+        if fd {
+            eprintln!("      sudo ip link set {interface} mtu 72   # CAN-FD frame size");
+        }
         eprintln!("      sudo ip link set {interface} up");
         eprintln!("  * Verify with: ip link show");
         return ExitCode::from(2);

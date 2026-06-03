@@ -42,6 +42,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _bringup_common import (  # noqa: E402
+    add_fd_arg,
     add_interface_arg,
     add_single_motor_args,
     print_assumptions,
@@ -69,6 +70,7 @@ def main() -> int:
         help="zero a single motor instead of a configured arm (uses --interface, --send-id, --recv-id, --motor-type)",
     )
     add_interface_arg(parser)
+    add_fd_arg(parser)
     add_single_motor_args(parser)
     parser.add_argument(
         "--i-understand-this-writes-zero",
@@ -106,6 +108,8 @@ def main() -> int:
             "persistence       : PERSISTENT in motor flash; affects every future run",
             f"confirmed         : {args.confirmed}",
         ],
+        # Direct single-motor path honors --fd; the config path is config-governed.
+        fd=args.fd if args.single_motor else None,
     )
 
     if not args.confirmed:
@@ -124,7 +128,7 @@ def main() -> int:
 
     if args.single_motor:
         motor_type = resolve_motor_type(args.motor_type)
-        transport = dm_control.SocketCanBus(args.interface, fd=False)
+        transport = dm_control.SocketCanBus(args.interface, fd=args.fd)
         robot = (
             dm_control.RobotBuilder()
             .add_bus("main", transport, DamiaoCodec())

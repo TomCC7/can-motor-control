@@ -66,10 +66,6 @@ pub enum TransportError {
     #[error("frame error: {0}")]
     FrameError(#[from] FrameError),
 
-    /// v1 does not implement CAN-FD; explicit, never silent.
-    #[error("CAN-FD is reserved for a future change; set fd=false")]
-    FdNotImplementedInV1,
-
     /// A CAN-FD frame was passed to a classical-only bus.
     #[error("CAN-FD frame on non-FD bus")]
     FdFrameOnNonFdBus,
@@ -96,16 +92,5 @@ mod tests {
     fn trait_is_object_safe() {
         // Just needs to compile.
         fn _accept(_b: Box<dyn CanBus>) {}
-    }
-
-    #[test]
-    fn fd_not_implemented_message_is_actionable() {
-        let e = TransportError::FdNotImplementedInV1;
-        let s = format!("{e}");
-        assert!(
-            s.contains("CAN-FD is reserved"),
-            "missing actionable phrase: {s}"
-        );
-        assert!(s.contains("fd=false"));
     }
 }

@@ -31,6 +31,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _bringup_common import (  # noqa: E402
     add_bounded_run_args,
+    add_fd_arg,
     add_interface_arg,
     parse_can_id,
     print_assumptions,
@@ -54,6 +55,7 @@ def main() -> int:
         description=(__doc__ or "").splitlines()[0]
     )
     add_interface_arg(parser)
+    add_fd_arg(parser)
     add_bounded_run_args(parser, default_seconds=2.0)
     parser.add_argument(
         "--config",
@@ -99,6 +101,7 @@ def main() -> int:
                 "sends             : enable + read-only ticks + disable",
                 "motion commands   : NONE",
             ],
+            fd=None,  # wire format governed by the config file
         )
         robot = dm_control.Robot.from_config(args.config)
         group_name = args.group_name
@@ -116,8 +119,9 @@ def main() -> int:
                 "sends             : enable + read-only ticks + disable",
                 "motion commands   : NONE",
             ],
+            fd=args.fd,
         )
-        transport = dm_control.SocketCanBus(args.interface, fd=False)
+        transport = dm_control.SocketCanBus(args.interface, fd=args.fd)
         specs = [
             dm_control.MotorSpec(f"j{i}", resolve_motor_type(t), s, r)
             for i, (s, r, t) in enumerate(args.motor)

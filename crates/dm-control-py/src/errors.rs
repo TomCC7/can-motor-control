@@ -11,7 +11,6 @@ pub fn into_pyerr(err: Error) -> PyErr {
         Error::Codec(c) => crate::CodecError::new_err(c.to_string()),
         Error::ConfigSchema(_) | Error::ConfigIo(_) => crate::ConfigError::new_err(msg),
         Error::UnknownVendor(_) | Error::UnknownBusName(_) => crate::ConfigError::new_err(msg),
-        Error::FdNotImplementedInV1 { .. } => crate::ConfigError::new_err(msg),
         Error::NotConnected | Error::TopologyLocked => crate::LifecycleError::new_err(msg),
         _ => crate::DmError::new_err(msg),
     }

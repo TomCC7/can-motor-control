@@ -9,6 +9,9 @@
 //! sudo ip link set vcan0 up
 //!
 //! cargo run --example single_arm -- vcan0
+//!
+//! # CAN-FD bus (interface must be FD-capable, e.g. `ip link set <iface> mtu 72`):
+//! cargo run --example single_arm -- canfd0 --fd
 //! ```
 
 use std::env;
@@ -20,10 +23,19 @@ use dm_control::{CanBus, MitCmd, MotorCodec, MotorSpec, MotorTypeId, RobotBuilde
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _ = parse_motor_type; // silence import for the curious reader.
 
-    let interface = env::args().nth(1).unwrap_or_else(|| "vcan0".to_string());
-    println!("opening SocketCAN interface: {interface}");
+    // Args: an optional positional interface name and an optional `--fd` flag.
+    let mut interface = "vcan0".to_string();
+    let mut fd = false;
+    for arg in env::args().skip(1) {
+        if arg == "--fd" {
+            fd = true;
+        } else {
+            interface = arg;
+        }
+    }
+    println!("opening SocketCAN interface: {interface} (fd={fd})");
 
-    let transport: Box<dyn CanBus> = Box::new(SocketCanBus::open(&interface, false)?);
+    let transport: Box<dyn CanBus> = Box::new(SocketCanBus::open(&interface, fd)?);
     let codec: Box<dyn MotorCodec> = Box::new(DamiaoCodec::new());
 
     let mut robot = RobotBuilder::new()

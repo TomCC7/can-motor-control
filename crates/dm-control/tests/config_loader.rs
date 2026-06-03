@@ -45,7 +45,13 @@ motors = [
 }
 
 #[test]
-fn fd_true_rejected_at_parse_time() {
+fn fd_true_opens_fd_bus() {
+    // fd = true is now a valid request to open the bus in CAN-FD mode (it is no
+    // longer rejected at parse time). It opens a real socket, so guard on vcan0.
+    if !vcan_available("vcan0") {
+        eprintln!("skipping: vcan0 not present");
+        return;
+    }
     let toml = r#"
 [bus.main]
 kind = "socketcan"
@@ -59,14 +65,8 @@ kind = "arm"
 bus = "main"
 motors = []
 "#;
-    let r = Robot::from_config_str(toml, &registry());
-    match r {
-        Err(Error::FdNotImplementedInV1 { bus_name }) => {
-            assert_eq!(bus_name, "main");
-        }
-        Ok(_) => panic!("expected FdNotImplementedInV1, got Ok"),
-        Err(e) => panic!("expected FdNotImplementedInV1, got Err({e})"),
-    }
+    let robot = Robot::from_config_str(toml, &registry()).expect("fd=true should build");
+    assert_eq!(robot.bus_names().collect::<Vec<_>>(), vec!["main"]);
 }
 
 #[test]

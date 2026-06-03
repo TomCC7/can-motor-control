@@ -1,0 +1,40 @@
+# OpenArm single-arm config on a CAN-FD bus.
+#
+# Identical to openarm_single.toml except the bus is opened in CAN-FD mode
+# (fd = true). The interface must itself be FD-capable, e.g. a real canfd0 or a
+# virtual one sized for FD:
+#   sudo ip link add dev vcanfd0 type vcan
+#   sudo ip link set vcanfd0 mtu 72        # 72 = sizeof(struct canfd_frame)
+#   sudo ip link set up vcanfd0
+#
+# Load with:
+#   let mut registry = dm_control::CodecRegistry::new();
+#   dm_codec::register(&mut registry);
+#   let robot = dm_control::Robot::from_config("configs/openarm_canfd.toml", &registry)?;
+#
+# Or in Python:
+#   import dm_control
+#   robot = dm_control.Robot.from_config("configs/openarm_canfd.toml")
+#
+# Note: the Damiao codec emits classical 8-byte frames even on an FD bus (those
+# are valid CAN-FD frames). Enabling fd here unlocks the FD transport path and
+# lets the codec accept FD-format state frames; it does not, by itself, widen
+# Damiao command payloads.
+
+[bus.main]
+kind      = "socketcan"
+interface = "canfd0"
+fd        = true               # open the bus in CAN-FD mode
+vendor    = "damiao"           # selects codec for this bus
+
+[[group]]
+name                 = "arm"
+kind                 = "arm"
+bus                  = "main"
+default_control_mode = "mit"
+motors = [
+  { name = "j0", type = "DM4340", send_id = 0x01, recv_id = 0x11 },
+  { name = "j1", type = "DM4340", send_id = 0x02, recv_id = 0x12 },
+  { name = "j2", type = "DM4340", send_id = 0x03, recv_id = 0x13 },
+  { name = "j3", type = "DM4340", send_id = 0x04, recv_id = 0x14 },
+]

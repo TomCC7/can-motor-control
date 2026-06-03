@@ -36,6 +36,7 @@ enum Mode {
 struct Args {
     mode: Mode,
     interface: String,
+    fd: bool,
     send_id: u32,
     recv_id: u32,
     motor_type: String,
@@ -58,6 +59,7 @@ Usage:\n\
 Options:\n\
   --mode <mit|pos-vel>   Gripper control mode (default: mit)\n\
   --interface <iface>    SocketCAN interface name (default: can0)\n\
+  --fd                   Open the bus in CAN-FD mode (interface must be FD-capable)\n\
   --send-id <id>         CAN id host->motor, hex or decimal (default: 0x08)\n\
   --recv-id <id>         CAN id motor->host, hex or decimal (default: 0x18)\n\
   --motor-type <sku>     Damiao motor model, e.g. DM4310, DM4340 (default: DM4310)\n\
@@ -102,6 +104,7 @@ fn parse_args() -> Result<Option<Args>, String> {
     let mut parsed = Args {
         mode: Mode::Mit,
         interface: DEFAULT_INTERFACE.to_string(),
+        fd: false,
         send_id: DEFAULT_SEND_ID,
         recv_id: DEFAULT_RECV_ID,
         motor_type: DEFAULT_MOTOR_TYPE.to_string(),
@@ -126,6 +129,7 @@ fn parse_args() -> Result<Option<Args>, String> {
                     _ => return Err(format!("unknown --mode {mode}; valid: mit, pos-vel")),
                 };
             }
+            "--fd" => parsed.fd = true,
             "--interface" => parsed.interface = next_value(&mut args, "--interface")?,
             "--send-id" => parsed.send_id = parse_can_id(&next_value(&mut args, "--send-id")?)?,
             "--recv-id" => parsed.recv_id = parse_can_id(&next_value(&mut args, "--recv-id")?)?,
@@ -193,13 +197,19 @@ fn print_assumptions(args: &Args) {
     }
     println!("  - safety            : verify nothing fragile is between the gripper jaws");
     println!();
-    println!("  dm_control v1 assumes classical CAN (no CAN-FD).");
-    println!(
-        "  Confirm `candump {}` is running before continuing.",
-        args.interface
-    );
+    print_wire_format(args.fd, &args.interface);
     println!("=====================================");
     let _ = io::stdout().flush();
+}
+
+fn print_wire_format(fd: bool, interface: &str) {
+    if fd {
+        println!("  This example opens the bus in CAN-FD mode (fd=true).");
+        println!("  The interface must be CAN-FD-capable (e.g. `ip link set <iface> mtu 72`).");
+    } else {
+        println!("  This example uses classical CAN (pass --fd for a CAN-FD bus).");
+    }
+    println!("  Confirm `candump {interface}` is running before continuing.");
 }
 
 fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
@@ -207,7 +217,7 @@ fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         .ok_or_else(|| format!("unknown --motor-type {}", args.motor_type))?;
     print_assumptions(&args);
 
-    let transport: Box<dyn CanBus> = Box::new(SocketCanBus::open(&args.interface, false)?);
+    let transport: Box<dyn CanBus> = Box::new(SocketCanBus::open(&args.interface, args.fd)?);
     let codec: Box<dyn MotorCodec> = Box::new(DamiaoCodec::new());
     let mut robot = RobotBuilder::new()
         .add_bus("main", transport, codec)

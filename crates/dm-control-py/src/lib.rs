@@ -54,7 +54,7 @@ create_exception!(
     ConfigError,
     DmError,
     "The robot configuration is invalid: bad config file, unknown vendor, \
-unknown bus name, or an unsupported option such as CAN-FD in v1."
+unknown bus name, or an unsupported group/bus option."
 );
 create_exception!(
     dm_control,

@@ -83,14 +83,6 @@ pub enum Error {
     #[error("topology locked after connect()")]
     TopologyLocked,
 
-    /// v1 does not implement CAN-FD. TOML `fd = true` triggers this at
-    /// parse-time, well before any socket open.
-    #[error("CAN-FD is reserved for a future change on bus '{bus_name}'; set fd = false")]
-    FdNotImplementedInV1 {
-        /// Offending bus name.
-        bus_name: String,
-    },
-
     /// Two motors on one bus share the same recv ID.
     #[error("CAN ID collision on bus '{bus_name}': recv_id {recv_id:#x} already routed to {existing:?}, attempted {attempted:?}")]
     CanIdCollision {

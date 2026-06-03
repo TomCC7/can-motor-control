@@ -117,8 +117,8 @@ struct MotorConfig {
 
 impl Robot {
     /// Parse a TOML config file and build a Robot using the supplied codec
-    /// registry. Performs every validation (including FD rejection and
-    /// codec-supports-motor) before opening any socket.
+    /// registry. Performs schema validation (including codec-supports-motor)
+    /// before opening any socket. A bus with `fd = true` opens in CAN-FD mode.
     pub fn from_config<P: AsRef<Path>>(path: P, registry: &CodecRegistry) -> Result<Self, Error> {
         let text = std::fs::read_to_string(path.as_ref())?;
         Self::from_config_str(&text, registry)
@@ -129,15 +129,8 @@ impl Robot {
     pub fn from_config_str(toml_text: &str, registry: &CodecRegistry) -> Result<Self, Error> {
         let cfg: RobotConfig = toml::from_str(toml_text)
             .map_err(|e| Error::ConfigSchema(format!("parse error: {e}")))?;
-        // 1) Detect fd=true at the schema level, before any socket.
-        for (name, bus) in &cfg.bus {
-            if bus.fd {
-                return Err(Error::FdNotImplementedInV1 {
-                    bus_name: name.clone(),
-                });
-            }
-        }
-        // 2) Detect vendor-on-group with a helpful error.
+        // A bus's `fd = true` opens that bus in CAN-FD mode (see SocketCanBus::open).
+        // 1) Detect vendor-on-group with a helpful error.
         for g in &cfg.group {
             if let Some(_v) = &g.vendor {
                 return Err(Error::ConfigSchema(format!(
@@ -146,7 +139,7 @@ impl Robot {
                 )));
             }
         }
-        // 3) Build buses.
+        // 2) Build buses.
         let mut builder = RobotBuilder::new();
         // Insertion order in TOML's HashMap is non-deterministic, so we sort
         // by name for stable behavior.
@@ -173,7 +166,7 @@ impl Robot {
                 .ok_or_else(|| Error::UnknownVendor(bus_cfg.vendor.clone()))?;
             builder = builder.add_bus(bus_name, transport, codec);
         }
-        // 4) Build groups; resolve motor type strings via the bus's vendor.
+        // 3) Build groups; resolve motor type strings via the bus's vendor.
         // We need the bus's vendor for type resolution — look it up by walking
         // the original cfg.bus, which we no longer have. Workaround: rebuild
         // a name → vendor map from the second copy below. To keep things

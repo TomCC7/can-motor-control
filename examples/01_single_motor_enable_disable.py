@@ -23,6 +23,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _bringup_common import (  # noqa: E402
     add_bounded_run_args,
+    add_fd_arg,
     add_interface_arg,
     add_single_motor_args,
     print_assumptions,
@@ -36,6 +37,7 @@ def main() -> int:
         description=(__doc__ or "").splitlines()[0]
     )
     add_interface_arg(parser)
+    add_fd_arg(parser)
     add_single_motor_args(parser)
     add_bounded_run_args(parser, default_seconds=1.0)
     args = parser.parse_args()
@@ -54,13 +56,14 @@ def main() -> int:
             "motion commands   : NONE (no mit/pos/vel/force frames)",
             "safety            : keep clear of the actuator; powered hardware",
         ],
+        fd=args.fd,
     )
 
     # Lazy imports so `--help` works even if the native wheel is missing.
     import dm_control
     from dm_control.damiao import DamiaoCodec
 
-    transport = dm_control.SocketCanBus(args.interface, fd=False)
+    transport = dm_control.SocketCanBus(args.interface, fd=args.fd)
     robot = (
         dm_control.RobotBuilder()
         .add_bus("main", transport, DamiaoCodec())

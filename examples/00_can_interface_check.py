@@ -26,6 +26,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _bringup_common import (  # noqa: E402
+    add_fd_arg,
     add_interface_arg,
     interface_exists,
     print_assumptions,
@@ -37,6 +38,7 @@ def main() -> int:
         description=(__doc__ or "").splitlines()[0]
     )
     add_interface_arg(parser)
+    add_fd_arg(parser)
     args = parser.parse_args()
 
     print_assumptions(
@@ -46,6 +48,7 @@ def main() -> int:
             "sends CAN frames? : no -- this example never opens the bus",
             "hardware required : none",
         ],
+        fd=args.fd,
     )
 
     if not interface_exists(args.interface):
@@ -65,6 +68,11 @@ def main() -> int:
             f"      sudo ip link add dev {args.interface} type vcan",
             file=sys.stderr,
         )
+        if args.fd:
+            print(
+                f"      sudo ip link set {args.interface} mtu 72   # CAN-FD frame size",
+                file=sys.stderr,
+            )
         print(
             f"      sudo ip link set {args.interface} up",
             file=sys.stderr,

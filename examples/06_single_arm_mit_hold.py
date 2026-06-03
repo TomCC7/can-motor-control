@@ -44,7 +44,10 @@ def main() -> int:
     parser.add_argument(
         "--config",
         required=True,
-        help="path to TOML robot config (e.g. configs/openarm_single.toml)",
+        help=(
+            "path to TOML robot config (e.g. configs/openarm_single.toml; "
+            "use configs/openarm_canfd.toml for a CAN-FD bus)"
+        ),
     )
     parser.add_argument(
         "--group-name",
@@ -68,6 +71,7 @@ def main() -> int:
             f"mit setpoint      : q={args.q} dq=0 tau=0 on every joint",
             "safety            : low gains -- soft hold; clear workspace and watch first",
         ],
+        fd=None,  # wire format governed by the config file
     )
 
     import dm_control

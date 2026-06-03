@@ -13,7 +13,7 @@
 [bus.main]
 kind      = "socketcan"
 interface = "can0"
-fd        = false              # CAN-FD reserved for a future change
+fd        = false              # classical CAN; see openarm_canfd.toml for FD
 vendor    = "damiao"           # selects codec for this bus
 
 [[group]]

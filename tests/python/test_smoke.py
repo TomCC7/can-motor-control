@@ -45,13 +45,44 @@ def test_damiao_submodule_accessible():
     assert DamiaoCodec() is not None
 
 
-def test_socketcanbus_fd_true_rejected():
-    try:
-        dm_control.SocketCanBus("vcan0", fd=True)
-    except dm_control.TransportError as e:
-        assert "CAN-FD is reserved" in str(e)
-        return
-    raise AssertionError("expected TransportError")
+def test_canframe_fd_constructor():
+    """`CanFrame.fd` builds a genuine CAN-FD frame; `is_fd()`/`payload()` are
+    methods that reflect the FD flag and the full payload."""
+    frame = dm_control.CanFrame.fd(0x123, bytes([0xAB] * 24))
+    assert frame.is_fd()
+    assert frame.payload() == bytes([0xAB] * 24)
+    assert frame.len == 24
+    classical = dm_control.CanFrame.classical(0x101, bytes([1, 2, 3, 4]))
+    assert not classical.is_fd()
+
+
+def test_fd_mock_bus_runs_full_stack():
+    """A robot built on a CAN-FD-capable mock bus runs a MIT loop end-to-end.
+    Exercises the FD bus through transport + codec + lifecycle without FD
+    hardware (the Damiao codec emits classical frames, valid on an FD bus)."""
+    builder = (
+        dm_control.RobotBuilder()
+        .add_bus("main", dm_control.MockCanBus.new_fd("vcanfd_mock"), DamiaoCodec())
+        .add_arm(
+            "arm",
+            bus="main",
+            motors=[
+                dm_control.MotorSpec("j0", MotorType.DM4340, send_id=0x01, recv_id=0x11),
+                dm_control.MotorSpec("j1", MotorType.DM4340, send_id=0x02, recv_id=0x12),
+            ],
+        )
+    )
+    robot = builder.build()
+    with robot:
+        arm = robot["arm"]
+        n = len(arm)
+        cmds = np.zeros((n, 5), dtype=np.float64)
+        cmds[:, 0] = 50.0  # kp
+        cmds[:, 1] = 1.0  # kd
+        for _ in range(10):
+            robot.tick(500)
+            arm.mit_control(cmds)
+        assert arm.positions().shape == (n,)
 
 
 def test_builder_build():

@@ -33,6 +33,9 @@ impl TransportHandle {
 /// so robot code can be exercised without a real CAN interface. Pass it to
 /// `RobotBuilder.add_bus`. A bus is consumed by the builder and may
 /// be added to only one robot.
+///
+/// The default constructor is classical-CAN; use `MockCanBus.new_fd` for an
+/// FD-capable mock that accepts and loops back CAN-FD frames.
 #[pyclass(name = "MockCanBus", module = "dm_control")]
 pub struct PyMockCanBus {
     pub(crate) handle: TransportHandle,
@@ -40,11 +43,21 @@ pub struct PyMockCanBus {
 
 #[pymethods]
 impl PyMockCanBus {
-    /// Create a mock bus identified by ``name`` (used in error messages).
+    /// Create a classical-CAN mock bus identified by ``name`` (used in error messages).
     #[new]
     fn new(name: &str) -> Self {
         Self {
             handle: TransportHandle::new(MockCanBus::new(name)),
+        }
+    }
+
+    /// Create a CAN-FD-capable mock bus. It advertises FD capabilities and
+    /// loops back FD frames, so the FD send/receive path is testable without an
+    /// FD-capable interface.
+    #[staticmethod]
+    fn new_fd(name: &str) -> Self {
+        Self {
+            handle: TransportHandle::new(MockCanBus::new_fd(name)),
         }
     }
 }

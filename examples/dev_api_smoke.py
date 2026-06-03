@@ -12,6 +12,7 @@ calibration) and are the supported path for first-time hardware testing.
 Usage:
     python examples/dev_api_smoke.py --mock
     python examples/dev_api_smoke.py --interface vcan0
+    python examples/dev_api_smoke.py --interface vcanfd0 --fd
 """
 
 import argparse
@@ -23,12 +24,15 @@ import dm_control
 from dm_control.damiao import DamiaoCodec, MotorType
 
 
-def build_robot(use_mock: bool, interface: str) -> dm_control.Robot:
-    transport = (
-        dm_control.MockCanBus("vcan_mock")
-        if use_mock
-        else dm_control.SocketCanBus(interface, fd=False)
-    )
+def build_robot(use_mock: bool, interface: str, fd: bool = False) -> dm_control.Robot:
+    if use_mock:
+        transport = (
+            dm_control.MockCanBus.new_fd("vcan_mock")
+            if fd
+            else dm_control.MockCanBus("vcan_mock")
+        )
+    else:
+        transport = dm_control.SocketCanBus(interface, fd=fd)
     return (
         dm_control.RobotBuilder()
         .add_bus("main", transport, DamiaoCodec())
@@ -50,12 +54,13 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--mock", action="store_true", help="use MockCanBus (no hardware)")
     parser.add_argument("--interface", default="vcan0", help="SocketCAN interface")
+    parser.add_argument("--fd", action="store_true", help="open the bus in CAN-FD mode")
     parser.add_argument("--seconds", type=float, default=10.0)
     parser.add_argument("--period", type=float, default=1e-3)
     parser.add_argument("--deadline-us", type=int, default=500)
     args = parser.parse_args()
 
-    robot = build_robot(args.mock, args.interface)
+    robot = build_robot(args.mock, args.interface, args.fd)
 
     with robot:
         arm = robot["arm"]

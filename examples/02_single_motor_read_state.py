@@ -23,6 +23,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _bringup_common import (  # noqa: E402
     add_bounded_run_args,
+    add_fd_arg,
     add_interface_arg,
     add_single_motor_args,
     print_assumptions,
@@ -36,6 +37,7 @@ def main() -> int:
         description=(__doc__ or "").splitlines()[0]
     )
     add_interface_arg(parser)
+    add_fd_arg(parser)
     add_single_motor_args(parser)
     add_bounded_run_args(parser, default_seconds=2.0)
     parser.add_argument(
@@ -60,12 +62,13 @@ def main() -> int:
             "sends             : enable + read-only ticks + disable",
             "motion commands   : NONE",
         ],
+        fd=args.fd,
     )
 
     import dm_control
     from dm_control.damiao import DamiaoCodec
 
-    transport = dm_control.SocketCanBus(args.interface, fd=False)
+    transport = dm_control.SocketCanBus(args.interface, fd=args.fd)
     robot = (
         dm_control.RobotBuilder()
         .add_bus("main", transport, DamiaoCodec())

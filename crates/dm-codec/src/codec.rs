@@ -69,8 +69,10 @@ impl MotorCodec for DamiaoCodec {
     }
 
     fn bind_to_bus(&mut self, caps: BusCapabilities) {
-        // v1 stores the caps but always emits classical regardless. v2 may
-        // gate FD emission on caps.supports_fd.
+        // The bound capabilities decide which frame formats this codec accepts
+        // on decode. Emission stays conservative — Damiao command/state frames
+        // are 8 bytes, valid on a classical or an FD bus — so a classical
+        // binding reproduces the v1 byte layout exactly.
         self.bound_caps = Some(caps);
     }
 
@@ -144,8 +146,9 @@ impl MotorCodec for DamiaoCodec {
     fn decode(&self, frame: &CanFrame) -> Result<Option<Event>, CodecError> {
         // Damiao state responses come on the recv_id assigned to the motor, with
         // the response command in the top nibble of byte 0.
-        if frame.is_fd() {
-            // v1 never emits FD frames from Damiao; ignore as not-ours.
+        if frame.is_fd() && !self.bound_caps.is_some_and(|c| c.supports_fd) {
+            // Not bound to an FD bus: an FD frame isn't a Damiao state frame we
+            // expect here. (A classical binding therefore behaves exactly as v1.)
             return Ok(None);
         }
         if frame.flags.contains(FrameFlags::REMOTE_REQUEST) {
@@ -441,6 +444,70 @@ mod tests {
                 .unwrap();
             assert!(!f.is_fd(), "caps={caps:?} produced FD frame");
             assert_eq!(f.len, 8);
+        }
+    }
+
+    /// Encoding is byte-for-byte identical whether bound classical, bound FD, or
+    /// unbound — the conservative-emission invariant the FD change must preserve.
+    #[test]
+    fn classical_binding_byte_identical_to_unbound() {
+        let m = ref_motor("j0", DamiaoMotorType::DM4340, 0x01, 0x11);
+        let cmd = Command::Mit {
+            kp: 50.0,
+            kd: 1.0,
+            q: 0.25,
+            dq: -0.5,
+            tau: 0.1,
+        };
+        let unbound = DamiaoCodec::new().encode_command(m, &cmd).unwrap();
+        let mut classical = DamiaoCodec::new();
+        classical.bind_to_bus(BusCapabilities::classical());
+        let mut fd = DamiaoCodec::new();
+        fd.bind_to_bus(BusCapabilities::fd());
+        let cf = classical.encode_command(m, &cmd).unwrap();
+        let ff = fd.encode_command(m, &cmd).unwrap();
+        assert!(!cf.is_fd() && !ff.is_fd() && !unbound.is_fd());
+        assert_eq!(cf.id, unbound.id);
+        assert_eq!(cf.payload(), unbound.payload());
+        assert_eq!(ff.payload(), unbound.payload());
+    }
+
+    /// A representative Damiao state frame, carried in FD format, decodes only
+    /// when the codec is bound to an FD bus; a classical/unbound codec treats it
+    /// as not-ours (preserving v1 behavior).
+    #[test]
+    fn fd_state_frame_decoded_only_when_bound_fd() {
+        let lim = limits_for(DamiaoMotorType::DM4340);
+        let (q, dq, tau) = (1.0, 0.5, 5.0);
+        let q_u = crate::bitpack::float_to_uint(q, -lim.p_max, lim.p_max, 16);
+        let dq_u = crate::bitpack::float_to_uint(dq, -lim.v_max, lim.v_max, 12);
+        let tau_u = crate::bitpack::float_to_uint(tau, -lim.t_max, lim.t_max, 12);
+        let payload = [
+            0x01,
+            ((q_u >> 8) & 0xff) as u8,
+            (q_u & 0xff) as u8,
+            ((dq_u >> 4) & 0xff) as u8,
+            ((((dq_u & 0xf) << 4) | ((tau_u >> 8) & 0xf)) & 0xff) as u8,
+            (tau_u & 0xff) as u8,
+            30,
+            35,
+        ];
+        // 8-byte payload is a valid FD DLC, so this is a genuine FD-format frame.
+        let fd_frame = CanFrame::fd(0x11, &payload).unwrap();
+        assert!(fd_frame.is_fd());
+
+        // Unbound and classical-bound: not ours → None (v1 behavior).
+        assert!(matches!(DamiaoCodec::new().decode(&fd_frame), Ok(None)));
+        let mut classical = DamiaoCodec::new();
+        classical.bind_to_bus(BusCapabilities::classical());
+        assert!(matches!(classical.decode(&fd_frame), Ok(None)));
+
+        // FD-bound: decoded as a state event.
+        let mut fd = DamiaoCodec::new();
+        fd.bind_to_bus(BusCapabilities::fd());
+        match fd.decode(&fd_frame).unwrap().unwrap() {
+            Event::State { motor_id, .. } => assert_eq!(motor_id, 0x11),
+            _ => panic!("expected State"),
         }
     }
 

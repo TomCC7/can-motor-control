@@ -4,7 +4,7 @@ Rust control library for Damiao-family CAN motors, with first-class Python bindi
 
 ## Status
 
-v0.1.0 (in development) — walking-skeleton scope: single arm end-to-end over Linux SocketCAN. The architecture accommodates future vendors (Robostride, MyActuator, CubeMars) and CAN-FD; only Damiao on classical CAN ships in v1.
+v0.1.0 (in development) — walking-skeleton scope: single arm end-to-end over Linux SocketCAN. CAN-FD is supported (classical CAN remains the default); see [`docs/can-fd.md`](./docs/can-fd.md). The architecture accommodates future vendors (Robostride, MyActuator, CubeMars). Only the Damiao codec ships in v1, and it emits classical 8-byte frames on either bus type.
 
 ## Why
 

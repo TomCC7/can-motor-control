@@ -21,6 +21,14 @@ const PF_CAN: libc::c_int = AF_CAN;
 const CAN_RAW: libc::c_int = 1;
 const SIOCGIFINDEX: libc::c_ulong = 0x8933;
 
+// setsockopt level/option for enabling CAN-FD reception on a raw CAN socket.
+// `SOL_CAN_RAW` = `SOL_CAN_BASE (100)` + `CAN_RAW (1)`; `CAN_RAW_FD_FRAMES` = 5.
+// Matches <linux/can/raw.h>. With this set, the socket may both read and write
+// `canfd_frame`s in addition to classical `can_frame`s.
+const SOL_CAN_BASE: libc::c_int = 100;
+const SOL_CAN_RAW: libc::c_int = SOL_CAN_BASE + CAN_RAW;
+const CAN_RAW_FD_FRAMES: libc::c_int = 5;
+
 const CAN_EFF_FLAG: u32 = 0x8000_0000;
 const CAN_RTR_FLAG: u32 = 0x4000_0000;
 const CAN_EFF_MASK: u32 = 0x1FFF_FFFF;
@@ -79,11 +87,11 @@ pub struct SocketCanBus {
 impl SocketCanBus {
     /// Open a SocketCAN interface.
     ///
-    /// `fd_enabled = true` is rejected in v1 before any syscall is issued.
+    /// With `fd_enabled = true` the socket is configured for CAN-FD
+    /// (`CAN_RAW_FD_FRAMES`) and the bus advertises `BusCapabilities::fd()`; the
+    /// interface itself must be FD-capable. With `fd_enabled = false` the bus is
+    /// classical-only (no FD socket option, 8-byte payload cap).
     pub fn open(interface: &str, fd_enabled: bool) -> Result<Self, TransportError> {
-        if fd_enabled {
-            return Err(TransportError::FdNotImplementedInV1);
-        }
         if interface.len() >= libc::IFNAMSIZ {
             return Err(TransportError::InterfaceNotFound(interface.to_string()));
         }
@@ -100,6 +108,25 @@ impl SocketCanBus {
         }
         // SAFETY: raw_fd is a kernel-owned fd; OwnedFd takes exclusive ownership.
         let owned = unsafe { OwnedFd::from_raw_fd(raw_fd) };
+
+        // Enable CAN-FD frames on the socket before bind when requested. Without
+        // this option the kernel delivers and accepts only classical frames.
+        if fd_enabled {
+            let enable: libc::c_int = 1;
+            // SAFETY: setsockopt with a valid level/option and an int-sized value.
+            let rc = unsafe {
+                libc::setsockopt(
+                    raw_fd,
+                    SOL_CAN_RAW,
+                    CAN_RAW_FD_FRAMES,
+                    &enable as *const libc::c_int as *const libc::c_void,
+                    size_of::<libc::c_int>() as libc::socklen_t,
+                )
+            };
+            if rc < 0 {
+                return Err(map_open_error(io::Error::last_os_error()));
+            }
+        }
 
         // bind(sockaddr_can)
         let addr = SockaddrCan {
@@ -137,8 +164,45 @@ impl SocketCanBus {
         Ok(Self {
             name: interface.to_string(),
             fd: owned,
-            caps: BusCapabilities::classical(),
+            caps: if fd_enabled {
+                BusCapabilities::fd()
+            } else {
+                BusCapabilities::classical()
+            },
         })
+    }
+
+    /// Write one already-serialized kernel frame (`expected` bytes), retrying
+    /// on `EAGAIN`/`EINTR` within the send budget. Shared by the classical and
+    /// FD send paths.
+    fn write_frame_bytes(&self, bytes: &[u8], expected: usize) -> Result<(), TransportError> {
+        let raw = self.fd.as_raw_fd();
+        let mut retries = 0u32;
+        loop {
+            // SAFETY: write() to an owned fd with a valid byte slice.
+            let n = unsafe { libc::write(raw, bytes.as_ptr() as *const libc::c_void, expected) };
+            if n == expected as isize {
+                return Ok(());
+            }
+            if n < 0 {
+                let err = io::Error::last_os_error();
+                match err.raw_os_error() {
+                    Some(libc::EAGAIN) => {
+                        retries += 1;
+                        if retries >= SEND_RETRY_BUDGET {
+                            return Err(TransportError::SendBufferFull);
+                        }
+                        continue;
+                    }
+                    Some(libc::EINTR) => continue,
+                    _ => return Err(TransportError::Io(err)),
+                }
+            }
+            // Short write — shouldn't happen for CAN, treat as IO error.
+            return Err(TransportError::Io(io::Error::other(format!(
+                "short write: {n} bytes"
+            ))));
+        }
     }
 }
 
@@ -214,64 +278,52 @@ impl CanBus for SocketCanBus {
 
     fn send(&mut self, frame: &CanFrame) -> Result<(), TransportError> {
         validate_send(&self.caps, frame)?;
-        // Defense in depth: v1 SocketCanBus never emits FD frames even if
-        // caller bypassed capability validation somehow.
+        // Format is chosen per-frame: an FD frame goes out as a `canfd_frame`,
+        // a classical frame as a `can_frame` — even on an FD-capable socket,
+        // which can carry both. `validate_send` has already rejected an FD frame
+        // on a classical bus, so reaching the FD arm implies `caps.supports_fd`.
         if frame.is_fd() {
-            return Err(TransportError::FdNotImplementedInV1);
-        }
-        let mut kf = KernelCanFrame {
-            can_id: encode_can_id(frame),
-            can_dlc: frame.len,
-            ..Default::default()
-        };
-        kf.data[..frame.len as usize].copy_from_slice(frame.payload());
-        let kf_bytes = unsafe {
-            std::slice::from_raw_parts(
-                &kf as *const KernelCanFrame as *const u8,
-                KERNEL_CLASSICAL_LEN,
-            )
-        };
-        let raw = self.fd.as_raw_fd();
-        let mut retries = 0u32;
-        loop {
-            // SAFETY: write() to an owned fd with a valid byte slice.
-            let n = unsafe {
-                libc::write(
-                    raw,
-                    kf_bytes.as_ptr() as *const libc::c_void,
+            let mut kf = KernelCanFdFrame {
+                can_id: encode_can_id(frame),
+                len: frame.len,
+                flags: fd_flags_byte(frame),
+                __res0: 0,
+                __res1: 0,
+                data: [0u8; 64],
+            };
+            kf.data[..frame.len as usize].copy_from_slice(frame.payload());
+            // SAFETY: viewing a #[repr(C)] struct as its byte representation.
+            let bytes = unsafe {
+                std::slice::from_raw_parts(
+                    &kf as *const KernelCanFdFrame as *const u8,
+                    KERNEL_FD_LEN,
+                )
+            };
+            self.write_frame_bytes(bytes, KERNEL_FD_LEN)
+        } else {
+            let mut kf = KernelCanFrame {
+                can_id: encode_can_id(frame),
+                can_dlc: frame.len,
+                ..Default::default()
+            };
+            kf.data[..frame.len as usize].copy_from_slice(frame.payload());
+            // SAFETY: viewing a #[repr(C)] struct as its byte representation.
+            let bytes = unsafe {
+                std::slice::from_raw_parts(
+                    &kf as *const KernelCanFrame as *const u8,
                     KERNEL_CLASSICAL_LEN,
                 )
             };
-            if n == KERNEL_CLASSICAL_LEN as isize {
-                return Ok(());
-            }
-            if n < 0 {
-                let err = io::Error::last_os_error();
-                match err.raw_os_error() {
-                    Some(libc::EAGAIN) => {
-                        retries += 1;
-                        if retries >= SEND_RETRY_BUDGET {
-                            return Err(TransportError::SendBufferFull);
-                        }
-                        continue;
-                    }
-                    Some(libc::EINTR) => continue,
-                    _ => return Err(TransportError::Io(err)),
-                }
-            }
-            // Short write — shouldn't happen for CAN, treat as IO error.
-            return Err(TransportError::Io(io::Error::other(format!(
-                "short write: {n} bytes"
-            ))));
+            self.write_frame_bytes(bytes, KERNEL_CLASSICAL_LEN)
         }
     }
 
     fn drain_inbound_nonblocking(&mut self) -> Result<Vec<CanFrame>, TransportError> {
         let mut out = Vec::new();
         let raw = self.fd.as_raw_fd();
-        // Allocate a buffer large enough for FD frames so a future change can
-        // enable FD on the same code path. v1 only ever reads classical frames
-        // here because we don't enable CAN_RAW_FD_FRAMES on the socket.
+        // Buffer sized for FD frames. A classical-only socket reads only
+        // classical frames; an FD socket (opened with fd=true) may read either,
+        // discriminated below by the kernel read length.
         let mut buf = [0u8; KERNEL_FD_LEN];
         loop {
             // SAFETY: read() into an owned buffer; the returned count is the
@@ -302,6 +354,19 @@ impl CanBus for SocketCanBus {
     fn raw_fd(&self) -> Option<RawFd> {
         Some(self.fd.as_raw_fd())
     }
+}
+
+/// Pack a `CanFrame`'s FD-only flags into the kernel `canfd_frame.flags` byte
+/// (bit 0 = BRS, bit 1 = ESI), matching `decode_kernel_fd`'s reader.
+fn fd_flags_byte(frame: &CanFrame) -> u8 {
+    let mut f = 0u8;
+    if frame.flags.contains(FrameFlags::BIT_RATE_SWITCH) {
+        f |= 0x01;
+    }
+    if frame.flags.contains(FrameFlags::ERROR_STATE) {
+        f |= 0x02;
+    }
+    f
 }
 
 fn encode_can_id(frame: &CanFrame) -> u32 {
@@ -378,36 +443,15 @@ mod tests {
         std::path::Path::new(&format!("/sys/class/net/{name}")).exists()
     }
 
+    /// The kernel `canfd_frame` layout we mirror is 72 bytes on Linux; the
+    /// receive path discriminates classical vs FD purely by read length, so a
+    /// layout drift would silently mis-parse frames. Assert it loudly instead.
     #[test]
-    fn fd_true_rejected() {
-        // The fd=true rejection happens at the top of SocketCanBus::open
-        // before any syscall. Verifying "no socket opened" via /proc/self/fd
-        // is unreliable under parallel test execution; the spec's "fd-count
-        // verifiable" hint is satisfied by code review of open() and the
-        // structural test below.
-        let r = SocketCanBus::open("vcan0", true);
-        assert!(matches!(r, Err(TransportError::FdNotImplementedInV1)));
-    }
-
-    /// Structural assertion: the FD rejection is the literal first non-trivial
-    /// line of `SocketCanBus::open` — ahead of any syscall.
-    #[test]
-    fn fd_rejection_precedes_first_syscall() {
-        let src = include_str!("socketcan.rs");
-        let open_idx = src
-            .find("pub fn open(")
-            .expect("open() function should exist");
-        let after_open = &src[open_idx..];
-        let fd_check_idx = after_open
-            .find("if fd_enabled {")
-            .expect("fd-enabled branch should exist");
-        let socket_call_idx = after_open
-            .find("libc::socket(")
-            .expect("socket call should exist");
-        assert!(
-            fd_check_idx < socket_call_idx,
-            "fd_enabled check (at {fd_check_idx}) must precede libc::socket call (at {socket_call_idx})"
-        );
+    fn kernel_fd_frame_layout_is_72_bytes() {
+        assert_eq!(size_of::<KernelCanFdFrame>(), 72);
+        assert_eq!(size_of::<KernelCanFrame>(), 16);
+        assert_eq!(KERNEL_FD_LEN, 72);
+        assert_eq!(KERNEL_CLASSICAL_LEN, 16);
     }
 
     #[test]
@@ -503,9 +547,41 @@ mod tests {
         assert_eq!(frame.payload(), &[0xAA; 16]);
     }
 
-    fn count_open_fds() -> usize {
-        std::fs::read_dir("/proc/self/fd")
-            .map(|d| d.count())
-            .unwrap_or(0)
+    #[test]
+    fn fd_open_advertises_fd_capabilities() {
+        // Requires an FD-capable interface (e.g. `ip link add vcanfd0 type
+        // vcan; ip link set vcanfd0 mtu 72`). Skipped when absent.
+        if !vcan_available("vcanfd0") {
+            eprintln!("skipping: vcanfd0 not present");
+            return;
+        }
+        let bus = SocketCanBus::open("vcanfd0", true).expect("open vcanfd0 fd");
+        let caps = bus.capabilities();
+        assert!(caps.supports_fd);
+        assert_eq!(caps.max_payload_len, 64);
+    }
+
+    #[test]
+    fn fd_round_trip_over_fd_socketcan() {
+        if !vcan_available("vcanfd0") {
+            eprintln!("skipping: vcanfd0 not present");
+            return;
+        }
+        let mut tx = SocketCanBus::open("vcanfd0", true).expect("open tx");
+        let mut rx = SocketCanBus::open("vcanfd0", true).expect("open rx");
+        let f = CanFrame::fd(0x123, &[0xAB; 16]).unwrap();
+        tx.send(&f).unwrap();
+        let mut got = Vec::new();
+        for _ in 0..100 {
+            got = rx.drain_inbound_nonblocking().unwrap();
+            if !got.is_empty() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        assert_eq!(got.len(), 1);
+        assert!(got[0].is_fd());
+        assert_eq!(got[0].id, 0x123);
+        assert_eq!(got[0].payload(), &[0xAB; 16]);
     }
 }

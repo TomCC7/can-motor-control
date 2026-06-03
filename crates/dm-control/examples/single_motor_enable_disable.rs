@@ -32,6 +32,7 @@ const DEFAULT_DEADLINE_US: u64 = 500;
 
 struct Args {
     interface: String,
+    fd: bool,
     send_id: u32,
     recv_id: u32,
     motor_type: String,
@@ -48,6 +49,7 @@ Usage:\n\
 \n\
 Options:\n\
   --interface <iface>    SocketCAN interface name (default: can0)\n\
+  --fd                   Open the bus in CAN-FD mode (interface must be FD-capable)\n\
   --send-id <id>         CAN id host->motor, hex or decimal (default: 0x01)\n\
   --recv-id <id>         CAN id motor->host, hex or decimal (default: 0x11)\n\
   --motor-type <sku>     Damiao motor model, e.g. DM4310, DM4340 (default: DM4340)\n\
@@ -74,6 +76,7 @@ fn parse_can_id(text: &str) -> Result<u32, String> {
 fn parse_args() -> Result<Option<Args>, String> {
     let mut parsed = Args {
         interface: DEFAULT_INTERFACE.to_string(),
+        fd: false,
         send_id: DEFAULT_SEND_ID,
         recv_id: DEFAULT_RECV_ID,
         motor_type: DEFAULT_MOTOR_TYPE.to_string(),
@@ -85,6 +88,7 @@ fn parse_args() -> Result<Option<Args>, String> {
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "-h" | "--help" => return Ok(None),
+            "--fd" => parsed.fd = true,
             "--interface" => {
                 parsed.interface = args
                     .next()
@@ -140,6 +144,16 @@ fn parse_args() -> Result<Option<Args>, String> {
     Ok(Some(parsed))
 }
 
+fn print_wire_format(fd: bool, interface: &str) {
+    if fd {
+        println!("  This example opens the bus in CAN-FD mode (fd=true).");
+        println!("  The interface must be CAN-FD-capable (e.g. `ip link set <iface> mtu 72`).");
+    } else {
+        println!("  This example uses classical CAN (pass --fd for a CAN-FD bus).");
+    }
+    println!("  Confirm the bus is up and `candump {interface}` shows traffic before powering motors.");
+}
+
 fn print_assumptions(args: &Args) {
     println!("=== Rust 01 single motor enable / disable ===");
     println!("  - interface         : {}", args.interface);
@@ -156,12 +170,7 @@ fn print_assumptions(args: &Args) {
     println!("  - motion commands   : NONE (no MIT/PosVel/Vel/PosForce frames)");
     println!("  - safety            : keep clear of the actuator; powered hardware");
     println!();
-    println!("  dm_control v1 assumes classical CAN (no CAN-FD).");
-    println!("  Confirm the bus is up at the expected bitrate (commonly 1 Mbit/s)");
-    println!(
-        "  and that `candump {}` shows traffic before powering motors.",
-        args.interface
-    );
+    print_wire_format(args.fd, &args.interface);
     println!("================================================");
     let _ = io::stdout().flush();
 }
@@ -172,7 +181,7 @@ fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
 
     print_assumptions(&args);
 
-    let transport: Box<dyn CanBus> = Box::new(SocketCanBus::open(&args.interface, false)?);
+    let transport: Box<dyn CanBus> = Box::new(SocketCanBus::open(&args.interface, args.fd)?);
     let codec: Box<dyn MotorCodec> = Box::new(DamiaoCodec::new());
     let mut robot = RobotBuilder::new()
         .add_bus("main", transport, codec)

@@ -31,13 +31,29 @@ import sys
 from typing import Iterable
 
 
-# v1 supports classical CAN only; the bus rejects fd=True. Examples must
-# print this so the operator knows the wire format before the link comes up.
-V1_CAN_BANNER = (
-    "dm_control v1 assumes classical CAN (no CAN-FD).\n"
-    "Confirm the bus is up at the expected bitrate (commonly 1 Mbit/s)\n"
-    "and that `candump <iface>` shows traffic before powering motors."
-)
+# Examples print the wire format before the link comes up so the operator knows
+# whether classical CAN or CAN-FD is in play. `fd` is a tri-state:
+#   False -> classical CAN (the default, --fd not passed)
+#   True  -> CAN-FD (--fd passed; interface must be FD-capable)
+#   None  -> bus is built from a --config file; fd is governed by the config.
+def wire_format_lines(fd: "bool | None") -> "list[str]":
+    if fd is None:
+        return [
+            "Wire format is set by the bus `fd =` field in --config.",
+            "Use configs/openarm_canfd.toml for a CAN-FD bus.",
+            "Confirm the bus is up and `candump <iface>` shows traffic before powering motors.",
+        ]
+    if fd:
+        return [
+            "This example opens the bus in CAN-FD mode (fd=True).",
+            "The interface must be CAN-FD-capable (e.g. `ip link set <iface> mtu 72`).",
+            "Confirm the bus is up and `candump <iface>` shows traffic before powering motors.",
+        ]
+    return [
+        "This example uses classical CAN (pass --fd for a CAN-FD bus).",
+        "Confirm the bus is up at the expected bitrate (commonly 1 Mbit/s)",
+        "and that `candump <iface>` shows traffic before powering motors.",
+    ]
 
 
 def parse_can_id(text: str) -> int:
@@ -51,6 +67,15 @@ def add_interface_arg(parser: argparse.ArgumentParser, *, default: str = "can0")
         "--interface",
         default=default,
         help=f"SocketCAN interface name (default: {default})",
+    )
+
+
+def add_fd_arg(parser: argparse.ArgumentParser) -> None:
+    """Add `--fd` to open the bus in CAN-FD mode (interface must be FD-capable)."""
+    parser.add_argument(
+        "--fd",
+        action="store_true",
+        help="open the bus in CAN-FD mode; the interface must be FD-capable",
     )
 
 
@@ -137,15 +162,20 @@ def print_assumptions(
     title: str,
     items: Iterable[str],
     *,
-    include_v1_banner: bool = True,
+    fd: "bool | None" = False,
+    include_wire_banner: bool = True,
 ) -> None:
-    """Print a uniform pre-flight block. Always call BEFORE sending CAN frames."""
+    """Print a uniform pre-flight block. Always call BEFORE sending CAN frames.
+
+    `fd` selects the wire-format banner: False = classical, True = CAN-FD,
+    None = governed by a --config file. See `wire_format_lines`.
+    """
     print(f"=== {title} ===")
     for item in items:
         print(f"  - {item}")
-    if include_v1_banner:
+    if include_wire_banner:
         print()
-        for line in V1_CAN_BANNER.splitlines():
+        for line in wire_format_lines(fd):
             print(f"  {line}")
     print("=" * (len(title) + 8))
     sys.stdout.flush()

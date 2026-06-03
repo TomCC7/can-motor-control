@@ -44,6 +44,12 @@ impl MockCanBus {
         Self::with_capabilities(name, BusCapabilities::classical())
     }
 
+    /// FD-capability mock with self-loopback — accepts and loops back FD frames
+    /// so the FD send/receive path is testable without an FD-capable interface.
+    pub fn new_fd(name: impl Into<String>) -> Self {
+        Self::with_capabilities(name, BusCapabilities::fd())
+    }
+
     /// Mock with explicit capabilities (tests that need FD-flagged behavior).
     pub fn with_capabilities(name: impl Into<String>, caps: BusCapabilities) -> Self {
         Self {
@@ -193,6 +199,18 @@ mod tests {
         let f = CanFrame::fd(0x100, &[0; 16]).unwrap();
         bus.send(&f).unwrap();
         assert_eq!(bus.drain_inbound_nonblocking().unwrap(), vec![f]);
+    }
+
+    #[test]
+    fn new_fd_round_trips_fd_frame_preserving_flag_and_payload() {
+        let mut bus = MockCanBus::new_fd("fd0");
+        assert!(bus.capabilities().supports_fd);
+        let f = CanFrame::fd(0x123, &[0xAB; 24]).unwrap();
+        bus.send(&f).unwrap();
+        let got = bus.drain_inbound_nonblocking().unwrap();
+        assert_eq!(got.len(), 1);
+        assert!(got[0].is_fd());
+        assert_eq!(got[0].payload(), &[0xAB; 24]);
     }
 
     #[test]

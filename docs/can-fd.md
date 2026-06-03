@@ -1,42 +1,73 @@
-# CAN-FD in v1
+# CAN-FD
 
-## Status
+CAN-FD is **supported**. A bus opened in FD mode uses the kernel's CAN-FD
+frame format (`CAN_RAW_FD_FRAMES`), can carry payloads up to 64 bytes, and
+preserves the bit-rate-switch (BRS) and error-state (ESI) flags. Classical CAN
+remains the default and is unchanged when FD is off.
 
-CAN-FD is **not implemented** in v1. The types and trait surface are
-FD-aware (`FrameFlags::FD_FORMAT`, `BusCapabilities::fd()`, unified
-`CanFrame` with a 64-byte inline payload), so v2 can land FD support
-**additively** — no breaking changes to upper-layer code.
+## Enabling FD
 
-## What "FD-ready" means
+The interface itself must be CAN-FD-capable. For a virtual interface:
 
-Every layer except the transport and codec implementations is fully
-classical/FD agnostic:
+```bash
+sudo ip link add dev vcanfd0 type vcan
+sudo ip link set vcanfd0 mtu 72        # 72 = sizeof(struct canfd_frame)
+sudo ip link set up vcanfd0
+```
 
-| Layer | FD handling in v1 |
+**TOML config** — set `fd = true` on the bus (see
+[`configs/openarm_canfd.toml`](https://github.com/cc/dm_control_rs/blob/main/configs/openarm_canfd.toml)):
+
+```toml
+[bus.main]
+kind      = "socketcan"
+interface = "canfd0"
+fd        = true
+vendor    = "damiao"
+```
+
+**Rust:**
+
+```rust
+let bus = dm_control::SocketCanBus::open("canfd0", /* fd_enabled = */ true)?;
+assert!(bus.capabilities().supports_fd);
+```
+
+**Python:**
+
+```python
+import dm_control
+bus = dm_control.SocketCanBus("canfd0", fd=True)
+```
+
+## How format is chosen
+
+A bus advertises [`BusCapabilities`]: `classical()` (8-byte cap) or `fd()`
+(64-byte cap). This is the single source of truth — upper layers (`Robot`,
+`Arm`, `Gripper`, `MotorGroup`) never branch on frame format.
+
+| Layer | Behavior |
 |---|---|
-| `dm_control::Robot` / `Arm` / `Gripper` | None — never branches on `is_fd()`. |
-| `dm_control::Bus` | Forwards frames; one decode per frame regardless of format. |
-| `motor_codec::MotorCodec` trait | Signature unchanged — codecs can choose to emit FD. |
-| `dm_codec::DamiaoCodec` | Always emits classical (`FD_FORMAT` unset) regardless of bus capability. |
-| `dm_control::SocketCanBus` | Opens classical sockets only (no `CAN_RAW_FD_FRAMES`). Rejects `fd=true` at `open()`. |
+| `SocketCanBus` | Opened with `fd=true` → sets `CAN_RAW_FD_FRAMES`, advertises `fd()`. Sends a frame as `canfd_frame` iff its `FD_FORMAT` flag is set, otherwise as a classical `can_frame` — an FD socket carries both. |
+| `validate_send` | Rejects an FD frame on a classical bus (`FdFrameOnNonFdBus`). |
+| `MotorCodec::bind_to_bus(caps)` | The codec keys decode/emit decisions off the bound capabilities. |
+| `DamiaoCodec` | **Conservative**: emits classical 8-byte frames on any bus (those are valid CAN-FD frames). When bound to an FD bus it additionally *accepts* FD-format state frames on decode; bound classical, it reproduces the v1 byte layout exactly. |
 
-## Explicit rejection points
+## Scope
 
-In v1, attempting to enable CAN-FD anywhere returns an error rather than
-silently falling back to classical:
+Enabling FD unlocks the FD transport path and FD-frame decode. It does **not**,
+by itself, widen Damiao command payloads beyond 8 bytes — Damiao's v1
+command/state protocol is 8-byte. A vendor protocol that genuinely needs
+>8-byte payloads can now build on a working FD transport.
 
-- `SocketCanBus::open(_, fd=true)` → `Err(TransportError::FdNotImplementedInV1)` *before* any syscall.
-- `bus.send(fd_frame)` on a `supports_fd=false` bus → `Err(TransportError::FdFrameOnNonFdBus)`.
-- TOML `fd = true` → `Err(Error::FdNotImplementedInV1 { bus_name })` at parse time, before any socket open.
-- Python `SocketCanBus("vcan0", fd=True)` → `dm_control.TransportError` with the substring `"CAN-FD is reserved for a future change; set fd=false"`.
+BRS data-phase bitrate is taken from the interface's configured `dbitrate`; the
+BRS flag is preserved on frames but not tuned by this library.
 
-## What unblocks v2
+## Testing without FD hardware
 
-To land CAN-FD support, a future change needs to:
+`MockCanBus::new_fd(name)` (Rust) advertises FD capabilities and loops FD frames
+back, so the FD send/receive and codec-gating paths are exercisable in CI
+without an FD-capable interface. The SocketCAN FD path itself is validated
+against a real or virtual FD interface during hardware bring-up.
 
-1. **`SocketCanBus`**: enable `CAN_RAW_FD_FRAMES` on the socket when constructed with `fd=true`; emit `canfd_frame` writes when `frame.is_fd()`. The inbound parser already detects FD frames by struct size.
-2. **`DamiaoCodec`**: optionally emit FD frames when the bound `BusCapabilities::supports_fd` is true. This is a behavior change inside the codec; the trait signature is unchanged.
-3. **Remove the rejection points** listed above; replace them with the intended behavior.
-
-No changes are required to `Robot`, `Arm`, `Gripper`, `MotorGroup`, the
-`MotorCodec` trait, `CanBus` trait, or any of the public Python surface.
+[`BusCapabilities`]: https://docs.rs/dm-control
