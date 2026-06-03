@@ -16,7 +16,7 @@ This change adopts those patterns without adding new protocol features.
 - Make examples useful for controlled real hardware testing, not just API demonstration.
 - Add risk in small increments: interface check → one motor no-motion → one motor controlled motion → multi-motor monitoring → multi-motor hold → gripper/calibration.
 - Prefer Python examples because the package is explicitly first-class for ML/teleop users and can be run one file at a time.
-- Provide Rust equivalents only for core Rust-user surfaces: single-motor enable/read and single-arm hold.
+- Provide Rust equivalents only for core Rust-user surfaces: interface check, single-motor enable/read, and single-arm hold.
 - Keep examples bounded by explicit `--seconds`, `--deadline-us`, IDs, interface, and conservative command defaults.
 - Print assumptions before sending frames: powered hardware, correct CAN bitrate, classical CAN v1, motor send/recv IDs, clear workspace around the actuator.
 - Ensure every example that enables hardware attempts to disable on normal exit and interrupt.
@@ -40,7 +40,8 @@ Examples in this tier must not send motor-control frames. They should verify and
 - Whether users should run `ip link show <interface>` and `candump <interface>`.
 - That v1 uses classical CAN and rejects CAN-FD.
 
-Candidate: `examples/00_can_interface_check.py`.
+Candidates: `examples/00_can_interface_check.py` and
+`crates/dm-control/examples/can_interface_check.rs`.
 
 ### Tier 1: One motor, no motion
 
@@ -50,6 +51,7 @@ Candidate examples:
 
 - `examples/01_single_motor_enable_disable.py`
 - `examples/02_single_motor_read_state.py`
+- `crates/dm-control/examples/single_motor_enable_disable.rs`
 
 The user supplies `--interface`, `--send-id`, `--recv-id`, and `--motor-type`. Defaults may mirror common Damiao/OpenArm values, but examples must print them before acting. `read_state` may call `enable`, `tick`, print `position`, `velocity`, `torque`, temperatures, then disable. It must not send a motion command.
 

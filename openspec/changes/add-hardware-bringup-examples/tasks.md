@@ -56,3 +56,10 @@
 - [x] 8.3 Test: run the no-frame `00_can_interface_check.py` in the current environment.
 - [x] 8.4 Test: if `vcan0` is available, run the examples that can safely exercise SocketCAN without real motors; otherwise document that host CAN is unavailable.
 - [ ] 8.5 Manual QA: on real hardware, execute the ladder in order through at least `03_single_motor_mit_hold.py` before declaring the hardware example suite validated.
+
+## 9. Rust scoped bring-up examples
+
+- [x] 9.1 Impl: add `crates/dm-control/examples/can_interface_check.rs` mirroring Python tier 0, checking `/sys/class/net/<iface>`, printing classical-CAN assumptions, and sending no CAN frames.
+- [x] 9.2 Test: run the Rust interface check help/missing-interface path and verify it exits with a clear diagnostic before opening a socket.
+- [x] 9.3 Impl: add `crates/dm-control/examples/single_motor_enable_disable.rs` mirroring Python tier 1, building one motor from explicit IDs, connecting, enabling, bounded ticking, disabling, and printing assumptions before acting.
+- [x] 9.4 Test: build/check the Rust examples and run the single-motor example help path without touching hardware.
