@@ -61,10 +61,10 @@ that real hardware will respond correctly.
 | -------------------------------------- | ---------------------- | ----------------------------- |
 | `00_can_interface_check.py`            | nothing                | none (checks `/sys/class/net`) |
 | `01_single_motor_enable_disable.py`    | enable + disable       | one powered motor             |
-| `02_single_motor_read_state.py`        | enable + reads + disable | one powered motor           |
+| `02_single_motor_read_state.py`        | enable + refresh-poll + disable | one powered motor    |
 | `03_single_motor_mit_hold.py`          | bounded MIT hold       | one powered motor             |
 | `04_single_motor_control_modes.py`     | one bounded mode/run   | one powered motor             |
-| `05_single_arm_state_monitor.py`       | enable + reads + disable | configured arm              |
+| `05_single_arm_state_monitor.py`       | enable + refresh-poll + disable | configured arm       |
 | `06_single_arm_mit_hold.py`            | bounded MIT hold       | configured arm                |
 | `07_gripper_control.py`                | gripper MIT or PosVel  | one gripper motor             |
 | `08_set_zero_calibration.py`           | `set_zero` (PERSISTENT) | configured arm or single motor |

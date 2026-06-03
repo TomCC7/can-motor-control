@@ -1,8 +1,8 @@
 //! [`DamiaoCodec`] — implements [`motor_codec::MotorCodec`] for Damiao motors.
 
 use motor_codec::{
-    BusCapabilities, CanFrame, CodecError, Command, Event, FrameFlags, Limits, MotorCodec,
-    MotorRef, MotorTypeId,
+    BusCapabilities, CanFrame, CodecError, Command, CommandKind, Event, FrameFlags, Limits,
+    MotorCodec, MotorRef, MotorTypeId, ParamValue,
 };
 
 use crate::bitpack::{pack_mit_payload, unpack_state_payload};
@@ -141,6 +141,39 @@ impl MotorCodec for DamiaoCodec {
                 mode: cmd.kind(),
             }),
         }
+    }
+
+    fn encode_refresh(&self, motor: MotorRef<'_>) -> Result<Option<CanFrame>, CodecError> {
+        // The `refresh_motor_status` query (0xCC on 0x7FF) requests a feedback
+        // frame without commanding motion. Disambiguate from the same-named
+        // `DamiaoCodecExt::encode_refresh`, which returns the raw frame.
+        Ok(Some(crate::DamiaoCodecExt::encode_refresh(self, motor)))
+    }
+
+    fn encode_set_mode(
+        &self,
+        motor: MotorRef<'_>,
+        mode: CommandKind,
+    ) -> Result<Option<CanFrame>, CodecError> {
+        // Damiao CTRL_MODE register (RID 10): MIT=1, PosVel=2, Vel=3, PosForce=4.
+        let value: u32 = match mode {
+            CommandKind::Mit => 1,
+            CommandKind::PosVel => 2,
+            CommandKind::Vel => 3,
+            CommandKind::PosForce => 4,
+            _ => {
+                return Err(CodecError::CommandNotSupported {
+                    vendor: VENDOR,
+                    mode,
+                })
+            }
+        };
+        Ok(Some(crate::DamiaoCodecExt::encode_write_param(
+            self,
+            motor,
+            crate::DamiaoRid::CTRL_MODE,
+            ParamValue::UInt(value),
+        )))
     }
 
     fn decode(&self, frame: &CanFrame) -> Result<Option<Event>, CodecError> {
@@ -509,6 +542,36 @@ mod tests {
             Event::State { motor_id, .. } => assert_eq!(motor_id, 0x11),
             _ => panic!("expected State"),
         }
+    }
+
+    #[test]
+    fn encode_refresh_matches_openarm_layout() {
+        let c = DamiaoCodec::new();
+        let m = ref_motor("j0", DamiaoMotorType::DM4340, 0x01, 0x11);
+        // The MotorCodec trait method wraps the Damiao 0xCC/0x7FF query.
+        let f = MotorCodec::encode_refresh(&c, m)
+            .unwrap()
+            .expect("damiao supports refresh");
+        assert_eq!(f.id, 0x7FF);
+        assert_eq!(f.len, 8);
+        assert_eq!(f.payload(), &[0x01, 0x00, 0xCC, 0, 0, 0, 0, 0]);
+        assert!(!f.is_fd());
+    }
+
+    #[test]
+    fn encode_set_mode_writes_ctrl_mode_register() {
+        let c = DamiaoCodec::new();
+        let m = ref_motor("j0", DamiaoMotorType::DM4340, 0x01, 0x11);
+        let f = MotorCodec::encode_set_mode(&c, m, CommandKind::Mit)
+            .unwrap()
+            .expect("damiao supports set_mode");
+        assert_eq!(f.id, 0x7FF);
+        assert_eq!(f.len, 8);
+        let p = f.payload();
+        assert_eq!(&p[0..2], &0x01u16.to_le_bytes()); // send id, LE
+        assert_eq!(p[2], 0x55); // write-param command
+        assert_eq!(p[3], 10); // CTRL_MODE register
+        assert_eq!(&p[4..8], &1u32.to_le_bytes()); // MIT == 1
     }
 
     extern crate alloc;

@@ -8,7 +8,7 @@ use dm_control::{
     Arm, CanBus, CodecRegistry, Gripper, GroupKind, MitCmd, PosForceCmd, PosVelCmd, Robot,
     RobotBuilder, VelCmd,
 };
-use motor_codec::MotorCodec;
+use motor_codec::{CommandKind, MotorCodec};
 use numpy::ndarray::Axis;
 use numpy::{PyArray1, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::exceptions::{PyKeyError, PyTypeError, PyValueError};
@@ -136,6 +136,20 @@ struct MotorSnapshot {
 /// Note: we do not release the GIL inside this helper because the closure
 /// captures `&mut Arm` which is not `Send`. The Robot-level methods
 /// (`tick`/`enable`/`disable`) release the GIL at that boundary instead.
+/// Parse a Python control-mode string (`"mit"`, `"pos_vel"`, `"vel"`,
+/// `"pos_force"`; hyphens accepted) into a [`CommandKind`].
+fn parse_control_mode(s: &str) -> PyResult<CommandKind> {
+    match s.to_ascii_lowercase().replace('-', "_").as_str() {
+        "mit" => Ok(CommandKind::Mit),
+        "pos_vel" | "posvel" => Ok(CommandKind::PosVel),
+        "vel" => Ok(CommandKind::Vel),
+        "pos_force" | "posforce" => Ok(CommandKind::PosForce),
+        other => Err(PyValueError::new_err(format!(
+            "unknown control mode {other:?}; expected one of: mit, pos_vel, vel, pos_force"
+        ))),
+    }
+}
+
 fn with_arm<R>(
     robot: &PyRobot,
     group_name: &str,
@@ -428,6 +442,23 @@ impl PyArm {
         let r = self.robot.bind(py).borrow();
         with_arm(&r, &self.name, |arm| arm.set_zero_all())
     }
+    /// Send a state-refresh query to every motor in the arm (commands no
+    /// motion). Pair with `Robot.tick` to receive the replies — this is how a
+    /// read loop keeps state fresh without driving the motors.
+    fn refresh(&self, py: Python<'_>) -> PyResult<()> {
+        let r = self.robot.bind(py).borrow();
+        with_arm(&r, &self.name, |arm| arm.refresh())
+    }
+    /// Set the persistent control mode on every motor in the arm. ``mode`` is
+    /// one of ``"mit"``, ``"pos_vel"``, ``"vel"``, ``"pos_force"``. Commands no
+    /// motion; call once at startup (after ``connect``, before commanding) so
+    /// the matching control commands take effect. Raises `ValueError` for an
+    /// unknown mode.
+    fn set_mode(&self, py: Python<'_>, mode: &str) -> PyResult<()> {
+        let kind = parse_control_mode(mode)?;
+        let r = self.robot.bind(py).borrow();
+        with_arm(&r, &self.name, |arm| arm.set_mode(kind))
+    }
 }
 
 /// A single-motor group driven as a gripper.
@@ -487,6 +518,20 @@ impl PyGripper {
         let cmd = PosVelCmd { q, dq };
         let r = self.robot.bind(py).borrow();
         with_gripper(&r, &self.name, |g| g.pos_vel_control(cmd))
+    }
+    /// Send a state-refresh query to the gripper motor (commands no motion).
+    /// Pair with `Robot.tick` to receive the reply.
+    fn refresh(&self, py: Python<'_>) -> PyResult<()> {
+        let r = self.robot.bind(py).borrow();
+        with_gripper(&r, &self.name, |g| g.refresh())
+    }
+    /// Set the gripper motor's persistent control mode (``"mit"``, ``"pos_vel"``,
+    /// ``"vel"``, ``"pos_force"``). Commands no motion. Raises `ValueError` for
+    /// an unknown mode.
+    fn set_mode(&self, py: Python<'_>, mode: &str) -> PyResult<()> {
+        let kind = parse_control_mode(mode)?;
+        let r = self.robot.bind(py).borrow();
+        with_gripper(&r, &self.name, |g| g.set_mode(kind))
     }
 }
 
@@ -760,6 +805,36 @@ impl PyRobot {
         py.allow_threads(|| {
             let mut robot = inner.lock().map_err(|_| dm_control::Error::BusPoisoned)?;
             robot.tick(Duration::from_micros(per_bus_deadline_us))
+        })
+        .map_err(into_pyerr)
+    }
+
+    /// Send a state-refresh query to every motor in every group (commands no
+    /// motion).
+    ///
+    /// Send-only — pair with `Robot.tick` to receive the replies. The GIL is
+    /// released for its duration. Raises `LifecycleError` if the robot is not
+    /// connected, or `TransportError` on a bus failure.
+    fn refresh(&self, py: Python<'_>) -> PyResult<()> {
+        let inner = self.inner.clone();
+        py.allow_threads(|| {
+            let mut robot = inner.lock().map_err(|_| dm_control::Error::BusPoisoned)?;
+            robot.refresh()
+        })
+        .map_err(into_pyerr)
+    }
+
+    /// Set the persistent control mode on every motor in every group. ``mode``
+    /// is one of ``"mit"``, ``"pos_vel"``, ``"vel"``, ``"pos_force"``. Commands
+    /// no motion; call once after `connect` and before commanding. The GIL is
+    /// released for its duration. Raises `ValueError` for an unknown mode,
+    /// `LifecycleError` if not connected.
+    fn set_mode(&self, py: Python<'_>, mode: &str) -> PyResult<()> {
+        let kind = parse_control_mode(mode)?;
+        let inner = self.inner.clone();
+        py.allow_threads(|| {
+            let mut robot = inner.lock().map_err(|_| dm_control::Error::BusPoisoned)?;
+            robot.set_mode(kind)
         })
         .map_err(into_pyerr)
     }

@@ -29,7 +29,10 @@ pub trait DamiaoCodecExt {
     /// Encode a "save settings to flash" frame (command byte `0xAA`).
     fn encode_save_to_flash(&self, motor: MotorRef<'_>) -> CanFrame;
 
-    /// Encode a "refresh from flash" frame (command byte `0xCC`).
+    /// Encode a "request state feedback" frame (Damiao `refresh_motor_status`,
+    /// command byte `0xCC` on `0x7FF`). The motor replies with a feedback frame;
+    /// this commands no motion. (Byte-for-byte the openarm
+    /// `create_refresh_command`.)
     fn encode_refresh(&self, motor: MotorRef<'_>) -> CanFrame;
 }
 

@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use motor_codec::{Command, Event, MotorRef};
+use motor_codec::{Command, CommandKind, Event, MotorRef};
 
 use crate::bus::Bus;
 use crate::error::Error;
@@ -262,6 +262,47 @@ impl MotorGroup {
         }
         Ok(())
     }
+
+    /// Send the codec's state-refresh query to every motor that supports one,
+    /// in insertion order. Motors whose codec returns `None` (no refresh) are
+    /// skipped. Send-only: this never drains inbound frames — call `tick` to
+    /// receive the replies. Commands no motion.
+    pub fn refresh_all(&mut self) -> Result<(), Error> {
+        let bus_arc = self.bus_arc()?;
+        let mut bus = bus_arc.lock().map_err(|_| Error::BusPoisoned)?;
+        for motor in &self.motors {
+            let m_ref = MotorRef {
+                motor_type: motor.motor_type(),
+                send_id: motor.send_id(),
+                recv_id: motor.recv_id(),
+                name: motor.name(),
+            };
+            if let Some(frame) = bus.codec.encode_refresh(m_ref).map_err(Error::Codec)? {
+                bus.transport.send(&frame).map_err(Error::Transport)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Set the persistent control mode (MIT / PosVel / Vel / PosForce) on every
+    /// motor whose codec supports it, in insertion order. Commands no motion;
+    /// send-only. Call once at startup, before the matching control commands.
+    pub fn set_mode(&mut self, mode: CommandKind) -> Result<(), Error> {
+        let bus_arc = self.bus_arc()?;
+        let mut bus = bus_arc.lock().map_err(|_| Error::BusPoisoned)?;
+        for motor in &self.motors {
+            let m_ref = MotorRef {
+                motor_type: motor.motor_type(),
+                send_id: motor.send_id(),
+                recv_id: motor.recv_id(),
+                name: motor.name(),
+            };
+            if let Some(frame) = bus.codec.encode_set_mode(m_ref, mode).map_err(Error::Codec)? {
+                bus.transport.send(&frame).map_err(Error::Transport)?;
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Newtype wrapping a [`MotorGroup`] that represents an articulated arm.
@@ -335,6 +376,16 @@ impl Arm {
     pub fn set_zero_all(&mut self) -> Result<(), Error> {
         self.0.set_zero_all()
     }
+    /// Send a state-refresh query to every motor (no motion). Pair with `tick`
+    /// to receive the replies.
+    pub fn refresh(&mut self) -> Result<(), Error> {
+        self.0.refresh_all()
+    }
+    /// Set the persistent control mode on every motor (no motion). Call once at
+    /// startup, before the matching control commands.
+    pub fn set_mode(&mut self, mode: CommandKind) -> Result<(), Error> {
+        self.0.set_mode(mode)
+    }
 
     /// Borrow the underlying [`MotorGroup`].
     pub fn inner(&self) -> &MotorGroup {
@@ -381,6 +432,14 @@ impl Gripper {
     /// Single PosForce command to the gripper motor.
     pub fn pos_force_control(&mut self, cmd: PosForceCmd) -> Result<(), Error> {
         self.0.send_command(0, cmd.into())
+    }
+    /// Send a state-refresh query to the motor (no motion). Pair with `tick`.
+    pub fn refresh(&mut self) -> Result<(), Error> {
+        self.0.refresh_all()
+    }
+    /// Set the gripper motor's persistent control mode (no motion).
+    pub fn set_mode(&mut self, mode: CommandKind) -> Result<(), Error> {
+        self.0.set_mode(mode)
     }
 
     /// Borrow the underlying [`MotorGroup`].
@@ -524,6 +583,14 @@ impl GroupKind {
     /// Disable all motors in this group (delegated).
     pub fn disable_all(&mut self) -> Result<(), Error> {
         self.inner_mut().disable_all()
+    }
+    /// Send a state-refresh query to every motor in this group (delegated).
+    pub fn refresh_all(&mut self) -> Result<(), Error> {
+        self.inner_mut().refresh_all()
+    }
+    /// Set the persistent control mode on every motor in this group (delegated).
+    pub fn set_mode(&mut self, mode: CommandKind) -> Result<(), Error> {
+        self.inner_mut().set_mode(mode)
     }
 }
 
@@ -674,6 +741,13 @@ mod integration_tests {
             CanFrame::classical(m.send_id, &[0x55])
                 .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
         }
+        fn encode_refresh(&self, m: MotorRef<'_>) -> Result<Option<CanFrame>, CodecError> {
+            // Mimic Damiao's 0xCC-on-0x7FF query so refresh paths are exercised.
+            let p = [m.send_id as u8, (m.send_id >> 8) as u8, 0xCC, 0, 0, 0, 0, 0];
+            CanFrame::classical(0x7FF, &p)
+                .map(Some)
+                .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
+        }
         fn decode(&self, _: &CanFrame) -> Result<Option<Event>, CodecError> {
             Ok(None)
         }
@@ -762,5 +836,39 @@ mod integration_tests {
         let mut group = MotorGroup::new("g".into(), "main".into(), motors);
         let r = group.enable_all();
         assert!(matches!(r, Err(Error::NotConnected)));
+    }
+
+    #[test]
+    fn refresh_emits_one_query_per_motor() {
+        // Pair the bus transport with a peer we keep, so we can observe exactly
+        // what refresh() put on the wire (one frame per motor, no extra traffic).
+        let (tx, mut peer) = MockCanBus::pair("vcan_main", "peer");
+        let transport: Box<dyn CanBus> = Box::new(tx);
+        let codec: Box<dyn MotorCodec> = Box::new(StubCodec);
+        let bus = Arc::new(Mutex::new(Bus::new(transport, codec)));
+        let motors = vec![
+            Motor::new("j0".into(), MotorTypeId::Damiao(3), 0x01, 0x11),
+            Motor::new("j1".into(), MotorTypeId::Damiao(3), 0x02, 0x12),
+            Motor::new("j2".into(), MotorTypeId::Damiao(3), 0x03, 0x13),
+        ];
+        let mut group = MotorGroup::new("arm".into(), "main".into(), motors);
+        group.attach_bus(bus);
+        let mut arm = Arm(group);
+
+        arm.refresh().unwrap();
+
+        let got = peer.drain_inbound_nonblocking().unwrap();
+        assert_eq!(got.len(), 3, "one refresh frame per motor");
+        assert!(
+            got.iter().all(|f| f.id == 0x7FF && f.payload()[2] == 0xCC),
+            "every emitted frame is a 0xCC refresh query on 0x7FF"
+        );
+    }
+
+    #[test]
+    fn refresh_not_connected_when_bus_not_attached() {
+        let motors = vec![Motor::new("g".into(), MotorTypeId::Damiao(3), 0x05, 0x18)];
+        let mut group = MotorGroup::new("g".into(), "main".into(), motors);
+        assert!(matches!(group.refresh_all(), Err(Error::NotConnected)));
     }
 }

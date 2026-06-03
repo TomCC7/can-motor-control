@@ -1,9 +1,12 @@
 """Tier 1 -- read state, no motion commands.
 
-Enable one motor, run bounded `tick()` calls so the codec parses state
-replies, print every state field, then disable. This example contains NO
-calls to `mit_control`, `pos_vel_control`, `vel_control`, or
-`pos_force_control`; grep for those names and you should find no hits.
+Enable one motor, then each cycle send a state-refresh query
+(`arm.refresh()` -- the Damiao `refresh_motor_status` poll, which commands no
+motion) and run `tick()` to receive the reply, print every state field, and
+disable. Refresh is required because a Damiao motor only reports state in reply
+to a frame we send; a tick-only loop would freeze after the enable ack. This
+example contains NO calls to `mit_control`, `pos_vel_control`, `vel_control`,
+or `pos_force_control`; grep for those names and you should find no hits.
 
 Run only after `01_single_motor_enable_disable.py` succeeds on the same
 motor.
@@ -87,15 +90,19 @@ def main() -> int:
     try:
         print("enabling...")
         robot.enable()
+        arm = robot["arm"]
         deadline = time.monotonic() + args.seconds
         ticks = 0
         period = 1e-3
         while time.monotonic() < deadline:
             t0 = time.monotonic()
+            # Query state (no motion), then tick to receive the reply. A Damiao
+            # motor only reports state in response to a frame we send.
+            arm.refresh()
             robot.tick(args.deadline_us)
             ticks += 1
             if ticks % args.print_every == 0:
-                m = robot["arm"]["j0"]
+                m = arm["j0"]
                 print(
                     f"tick={ticks:>6} pos={m.position:+.5f} vel={m.velocity:+.5f} "
                     f"tau={m.torque:+.5f} t_mos={m.temperature_mos} "

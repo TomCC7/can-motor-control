@@ -50,6 +50,35 @@ pub trait MotorCodec: Send + Sync {
     /// Encode a control-mode command.
     fn encode_command(&self, motor: MotorRef<'_>, cmd: &Command) -> Result<CanFrame, CodecError>;
 
+    /// Encode a "request current motor state" frame, if the vendor protocol has
+    /// one.
+    ///
+    /// The returned frame MUST request a state-feedback reply **without
+    /// commanding any motion**. Returns `Ok(None)` (the default) when the codec
+    /// has no such query; callers skip those motors. This lets a read loop poll
+    /// state via `refresh` then [`MotorCodec::decode`] without applying torque.
+    fn encode_refresh(&self, motor: MotorRef<'_>) -> Result<Option<CanFrame>, CodecError> {
+        let _ = motor;
+        Ok(None)
+    }
+
+    /// Encode a "set the motor's persistent control mode" frame, if the vendor
+    /// protocol supports it.
+    ///
+    /// `mode` selects which control law the motor will accept
+    /// (MIT / PosVel / Vel / PosForce). Returns `Ok(None)` (the default) when
+    /// the codec has no such command; callers skip those motors. This commands
+    /// no motion — call it once at startup, before the matching
+    /// [`MotorCodec::encode_command`] mode.
+    fn encode_set_mode(
+        &self,
+        motor: MotorRef<'_>,
+        mode: CommandKind,
+    ) -> Result<Option<CanFrame>, CodecError> {
+        let _ = (motor, mode);
+        Ok(None)
+    }
+
     /// Decode an inbound frame.
     ///
     /// Returns `Ok(Some(event))` for a recognized inbound message,
@@ -140,6 +169,28 @@ mod tests {
     #[test]
     fn trait_object_safe() {
         let _: Box<dyn MotorCodec> = Box::new(Dummy);
+    }
+
+    #[test]
+    fn default_encode_refresh_is_none() {
+        let m = MotorRef {
+            motor_type: MotorTypeId::Damiao(3),
+            send_id: 1,
+            recv_id: 0x11,
+            name: "j",
+        };
+        assert!(matches!(Dummy.encode_refresh(m), Ok(None)));
+    }
+
+    #[test]
+    fn default_encode_set_mode_is_none() {
+        let m = MotorRef {
+            motor_type: MotorTypeId::Damiao(3),
+            send_id: 1,
+            recv_id: 0x11,
+            name: "j",
+        };
+        assert!(matches!(Dummy.encode_set_mode(m, CommandKind::Mit), Ok(None)));
     }
 
     #[test]

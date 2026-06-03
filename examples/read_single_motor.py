@@ -1,11 +1,15 @@
 """Developer-only example: live TUI of one motor's state. NOT a hardware
 bring-up example.
 
-Builds a one-motor robot, enables it, then ticks continuously and renders the
-motor's position / velocity / torque / temperatures / enabled / fault in a
-`rich` live table that refreshes in place. It runs until you press Ctrl-C, then
-disables on exit. It sends only the lifecycle enable/disable frames and
-read-oriented ticks -- no motion commands.
+Builds a one-motor robot, sets it to MIT control mode, enables it, and commands
+zero torque once (`kp=kd=q=dq=tau=0`) so the motor is compliant / back-drivable.
+Then each cycle it sends a state-refresh query (`arm.refresh()`, which commands
+no motion) and ticks to receive the reply, rendering the motor's position /
+velocity / torque / temperatures / enabled / fault in a `rich` live table that
+refreshes in place. It runs until you press Ctrl-C, then disables on exit.
+After the initial zero-torque command the loop never drives the motor — refresh
+is how a Damiao motor reports state without moving (a tick-only loop would
+freeze after the enable acknowledgement).
 
 Runs against MockCanBus (`--mock`, no hardware) or a SocketCAN interface
 (`--interface can0`, optionally `--fd` for a CAN-FD bus). Mock execution proves
@@ -26,6 +30,7 @@ import argparse
 import sys
 import time
 
+import numpy as np
 from rich import box
 from rich.console import Console, Group
 from rich.live import Live
@@ -71,7 +76,6 @@ def build_robot(args: argparse.Namespace):
 
 def render(meta: dict, motor, ticks: int, elapsed: float, rate: float):
     """Compose the live panel for the current motor snapshot."""
-    print(motor)
     head = Table.grid(padding=(0, 2))
     head.add_column(style="bold cyan", justify="right")
     head.add_column()
@@ -114,9 +118,12 @@ def render(meta: dict, motor, ticks: int, elapsed: float, rate: float):
 
 
 def run_live(args: argparse.Namespace, robot, meta: dict, console: Console) -> int:
-    refresh = max(1.0, args.hz)
-    render_period = 1.0 / refresh
+    refresh_hz = max(1.0, args.hz)
+    render_period = 1.0 / refresh_hz
     loop_period = 1e-3
+
+    arm = robot["arm"]
+    motor = arm["j0"]  # live view — re-reads state on each attribute access
 
     start = time.monotonic()
     last_render = -render_period
@@ -125,11 +132,15 @@ def run_live(args: argparse.Namespace, robot, meta: dict, console: Console) -> i
     ticks = 0
     rate = 0.0
 
-    with Live(console=console, screen=True, refresh_per_second=refresh) as live:
+    with Live(console=console, screen=True, refresh_per_second=refresh_hz) as live:
         while True:
             if args.seconds is not None and (time.monotonic() - start) >= args.seconds:
                 break
             t0 = time.monotonic()
+            # Damiao only reports state in reply to a frame we send. Query state
+            # with a refresh (commands no motion), then tick to receive it.
+            # arm.refresh()
+            arm.mit_control(np.zeros((1, 5), dtype=np.float64))
             robot.tick(args.deadline_us)
             ticks += 1
             window_ticks += 1
@@ -140,8 +151,7 @@ def run_live(args: argparse.Namespace, robot, meta: dict, console: Console) -> i
                     rate = window_ticks / dt
                 window_start, window_ticks = t0, 0
                 last_render = elapsed
-                # Re-fetch the motor wrapper each render (state is read at access).
-                live.update(render(meta, robot["arm"]["j0"], ticks, elapsed, rate))
+                live.update(render(meta, motor, ticks, elapsed, rate))
             rem = loop_period - (time.monotonic() - t0)
             if rem > 0:
                 time.sleep(rem)
@@ -182,8 +192,15 @@ def main() -> int:
     console.print("connecting...")
     robot.connect()
     try:
+        # Put the motor in MIT control mode before enabling, so MIT commands
+        # (and the zero-torque compliance below) actually take effect.
+        console.print("setting MIT mode...")
+        robot["arm"].set_mode("mit")
         console.print("enabling...")
         robot.enable()
+        # Command zero torque once (kp=kd=q=dq=tau=0) so the motor is compliant
+        # / back-drivable in MIT mode; after this we only refresh-poll for state.
+        robot["arm"].mit_control(np.zeros((1, 5), dtype=np.float64))
         try:
             ticks = run_live(args, robot, meta, console)
             console.print(f"completed {ticks} ticks")

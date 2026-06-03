@@ -12,7 +12,7 @@ use crate::group::{Arm, Generic, Gripper, GroupKind, MotorGroup};
 use crate::motor::Motor;
 use crate::spec::{GroupSpecKind, MotorSpec};
 use crate::transport::{BusPoller, CanBus};
-use motor_codec::MotorCodec;
+use motor_codec::{CommandKind, MotorCodec};
 
 /// A configured robot: named buses + named groups + lifecycle state.
 pub struct Robot {
@@ -144,6 +144,37 @@ impl Robot {
         for name in self.group_order.clone().iter().rev() {
             if let Some(g) = self.groups.get_mut(name) {
                 g.disable_all()?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Send a state-refresh query to every motor in every group (no motion).
+    /// Send-only — pair with [`Robot::tick`] to receive the replies. Errors with
+    /// [`Error::NotConnected`] if called before `connect()`.
+    pub fn refresh(&mut self) -> Result<(), Error> {
+        if !self.connected {
+            return Err(Error::NotConnected);
+        }
+        for name in &self.group_order.clone() {
+            if let Some(g) = self.groups.get_mut(name) {
+                g.refresh_all()?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Set the persistent control mode (MIT / PosVel / Vel / PosForce) on every
+    /// motor in every group (no motion). Send-only. Call once after `connect`
+    /// and before commanding. Errors with [`Error::NotConnected`] if not
+    /// connected.
+    pub fn set_mode(&mut self, mode: CommandKind) -> Result<(), Error> {
+        if !self.connected {
+            return Err(Error::NotConnected);
+        }
+        for name in &self.group_order.clone() {
+            if let Some(g) = self.groups.get_mut(name) {
+                g.set_mode(mode)?;
             }
         }
         Ok(())
@@ -690,15 +721,20 @@ mod tests {
     }
 
     /// Source grep: no group method body calls drain_inbound_nonblocking.
-    /// Enforced as a textual scan of the group source.
+    /// Enforced as a textual scan of the group source. The `#[cfg(test)]`
+    /// modules are stripped first (test code legitimately drains mock peers to
+    /// observe what a group sent); this guards production method bodies only,
+    /// matching the sibling `source_invariants` scan in group.rs.
     #[test]
     fn group_source_does_not_call_drain() {
         let src = include_str!("group.rs");
-        // Allow `drain_inbound_nonblocking` to appear in a doc comment / module
-        // doc but not in any method body. We test for the literal call form.
+        let scan = match src.find("#[cfg(test)]") {
+            Some(idx) => &src[..idx],
+            None => src,
+        };
         for needle in ["drain_inbound_nonblocking(", ".drain_inbound_nonblocking"] {
             assert!(
-                !src.contains(needle),
+                !scan.contains(needle),
                 "group.rs must not call {needle}; only Robot::tick may"
             );
         }

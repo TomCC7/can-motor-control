@@ -2,10 +2,11 @@
 
 Load a multi-motor arm from either a TOML config (e.g.
 `configs/openarm_single.toml`) or from explicit `--motors` IDs. Enable
-the arm, tick for a bounded time, print per-joint state, and disable.
+the arm, then each cycle refresh-poll state (`arm.refresh()`, no motion) and
+tick for a bounded time, print per-joint state, and disable.
 
 This is the multi-motor analog of `02_single_motor_read_state.py`. It
-contains NO motion-command calls.
+contains NO motion-command calls (refresh is a state query, not motion).
 
 Run only after every joint in the arm has individually passed `01` and
 `02`. Bringing up a full arm before single-motor bring-up is the most
@@ -146,6 +147,8 @@ def main() -> int:
         period = 1e-3
         while time.monotonic() < deadline:
             t0 = time.monotonic()
+            # Query state (no motion), then tick to receive the replies.
+            arm.refresh()
             robot.tick(args.deadline_us)
             ticks += 1
             if ticks % args.print_every == 0:
