@@ -22,7 +22,7 @@ groups, robot, control loops, Python bindings — stays vendor-agnostic.
 
 It is object-safe (no associated types, no generics on methods), so the
 rest of the library uses `Box<dyn MotorCodec>` exclusively. The
-`dm-control` crate has **zero** dependency on any vendor codec — verified
+`can-motor-control` crate has **zero** dependency on any vendor codec — verified
 by a CI grep job.
 
 ## Adding a vendor
@@ -81,7 +81,7 @@ don't belong on the common trait. They live on a per-vendor extension
 trait in the vendor's own crate:
 
 ```rust
-// in dm-codec
+// in damiao-codec
 pub trait DamiaoCodecExt {
     fn encode_read_param(&self, motor: MotorRef<'_>, rid: DamiaoRid) -> CanFrame;
     fn encode_write_param(&self, motor: MotorRef<'_>, rid: DamiaoRid, val: ParamValue) -> CanFrame;

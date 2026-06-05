@@ -1,6 +1,6 @@
-# SocketCAN setup for `dm_control` hardware examples
+# SocketCAN setup for `can_motor_control` hardware examples
 
-`dm_control` v1 talks to Damiao motors over **classical CAN only** on
+`can_motor_control` v1 talks to Damiao motors over **classical CAN only** on
 Linux SocketCAN. CAN-FD is intentionally not supported in v1; the bus
 rejects `fd=true` (see [`docs/can-fd.md`](./can-fd.md)).
 

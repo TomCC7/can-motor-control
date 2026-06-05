@@ -1,13 +1,13 @@
 # OpenArm single-arm config — four DM4340 joints on one SocketCAN bus.
 #
 # Load with:
-#   let mut registry = dm_control::CodecRegistry::new();
-#   dm_codec::register(&mut registry);
-#   let mut robot = dm_control::Robot::from_config("configs/openarm_single.toml", &registry)?;
+#   let mut registry = can_motor_control::CodecRegistry::new();
+#   damiao_codec::register(&mut registry);
+#   let mut robot = can_motor_control::Robot::from_config("configs/openarm_single.toml", &registry)?;
 #
 # Or in Python:
-#   import dm_control
-#   robot = dm_control.Robot.from_config("configs/openarm_single.toml")
+#   import can_motor_control
+#   robot = can_motor_control.Robot.from_config("configs/openarm_single.toml")
 #   # (the wheel auto-registers "damiao")
 
 [bus.main]

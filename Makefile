@@ -5,7 +5,7 @@
 ADDR ?= 127.0.0.1:8000
 
 # Provision (or refresh) the pinned docs environment from uv.lock. This builds
-# the `dm_control` extension editable via maturin and installs the locked docs
+# the `can_motor_control` extension editable via maturin and installs the locked docs
 # toolchain. `--reinstall-package` forces a rebuild so edits to the Rust
 # docstrings are always reflected in the rendered site.
 docs-sync:
@@ -13,15 +13,15 @@ docs-sync:
 	  echo "error: 'uv' not found."; \
 	  echo "  install it:  https://docs.astral.sh/uv/getting-started/installation/"; \
 	  exit 1; }
-	uv sync --reinstall-package dm_control
+	uv sync --reinstall-package can-motor-control
 
 # Serve the docs site with live reload (rebuilds on save). Best for editing.
 docs: docs-sync
-	uv run mkdocs serve --dev-addr $(ADDR)
+	uv run --with mkdocs --with mkdocs-material --with 'mkdocstrings[python]' -- python -m mkdocs serve --dev-addr $(ADDR)
 
 # Render a static site into ./site
 docs-build: docs-sync
-	uv run mkdocs build --site-dir site
+	uv run --with mkdocs --with mkdocs-material --with 'mkdocstrings[python]' -- python -m mkdocs build --site-dir site
 
 # Host the already-built ./site locally with a plain static server. Builds
 # first if needed. Nothing is pushed anywhere.

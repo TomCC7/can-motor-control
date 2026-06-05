@@ -26,7 +26,7 @@ This change adopts those patterns without adding new protocol features.
 - No new public APIs unless an example cannot be made safe with the current surface.
 - No mock-driven tutorial suite. Mock usage remains in tests.
 - No CAN-FD flows; examples must pass `fd=false` and describe v1 classical CAN only.
-- No automatic discovery or parameter query examples until the public API exposes Damiao parameter queries through `dm-control`/Python.
+- No automatic discovery or parameter query examples until the public API exposes Damiao parameter queries through `can-motor-control`/Python.
 - No set-zero automation without explicit confirmation flags.
 
 ## Example Tiers
@@ -41,7 +41,7 @@ Examples in this tier must not send motor-control frames. They should verify and
 - That v1 uses classical CAN and rejects CAN-FD.
 
 Candidates: `examples/00_can_interface_check.py` and
-`crates/dm-control/examples/can_interface_check.rs`.
+`crates/can-motor-control/examples/can_interface_check.rs`.
 
 ### Tier 1: One motor, no motion
 
@@ -51,7 +51,7 @@ Candidate examples:
 
 - `examples/01_single_motor_enable_disable.py`
 - `examples/02_single_motor_read_state.py`
-- `crates/dm-control/examples/single_motor_enable_disable.rs`
+- `crates/can-motor-control/examples/single_motor_enable_disable.rs`
 
 The user supplies `--interface`, `--send-id`, `--recv-id`, and `--motor-type`. Defaults may mirror common Damiao/OpenArm values, but examples must print them before acting. `read_state` may call `enable`, `tick`, print `position`, `velocity`, `torque`, temperatures, then disable. It must not send a motion command.
 
@@ -90,7 +90,7 @@ This example must require an explicit confirmation flag such as `--i-understand-
 
 Mocks remain valuable for CI, shape tests, and Python wheel smoke tests. They should not be presented as the main example path.
 
-- Keep `MockCanBus` tests in `tests/python/` and `crates/dm-control/tests/`.
+- Keep `MockCanBus` tests in `tests/python/` and `crates/can-motor-control/tests/`.
 - Do not add multiple separated mock examples.
 - If a mock example is retained, name it as developer-only, e.g. `examples/dev_api_smoke.py`, and state that it does not validate hardware bring-up.
 

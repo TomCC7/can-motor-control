@@ -2,7 +2,7 @@
 
 ### Requirement: Single local command builds and serves the docs site
 
-The project SHALL provide a single command that builds the `dm_control` native extension and then builds/serves the documentation site locally, with no CI or publishing step required. Running the command on a clean checkout (after dev dependencies are installed) SHALL produce a browsable site.
+The project SHALL provide a single command that builds the `can_motor_control` native extension and then builds/serves the documentation site locally, with no CI or publishing step required. Running the command on a clean checkout (after dev dependencies are installed) SHALL produce a browsable site.
 
 #### Scenario: Developer serves the site locally
 
@@ -21,12 +21,12 @@ The project SHALL provide a single command that builds the `dm_control` native e
 
 ### Requirement: Python API reference is generated from the package
 
-The site SHALL include a Python API reference auto-generated from the `dm_control` package via mkdocstrings/griffe, covering the publicly exported surface (`Robot`, `RobotBuilder`, `Arm`, `Gripper`, `Motor`, `MotorGroup`, `MotorSpec`, `CanFrame`, the bus transports, the `damiao` codec module, and the error types). Member signatures SHALL be rendered, using the `.pyi` stubs where the compiled extension does not expose them.
+The site SHALL include a Python API reference auto-generated from the `can_motor_control` package via mkdocstrings/griffe, covering the publicly exported surface (`Robot`, `RobotBuilder`, `Arm`, `Gripper`, `Motor`, `MotorGroup`, `MotorSpec`, `CanFrame`, the bus transports, the `damiao` codec module, and the error types). Member signatures SHALL be rendered, using the `.pyi` stubs where the compiled extension does not expose them.
 
 #### Scenario: Public class appears in the reference
 
 - **WHEN** the site is built and a user opens the Python API reference page
-- **THEN** each publicly exported class from `dm_control.__all__` is listed with its methods and their signatures
+- **THEN** each publicly exported class from `can_motor_control.__all__` is listed with its methods and their signatures
 
 #### Scenario: Reference stays in sync with the package
 
@@ -67,5 +67,5 @@ The documentation dependencies (mkdocs-material, mkdocstrings/griffe) SHALL be d
 
 #### Scenario: Runtime install excludes docs tooling
 
-- **WHEN** the `dm_control` wheel is installed without the docs extra
+- **WHEN** the `can_motor_control` wheel is installed without the docs extra
 - **THEN** none of the documentation toolchain packages are pulled in as runtime dependencies

@@ -16,7 +16,7 @@ sudo ip link set up vcanfd0
 ```
 
 **TOML config** — set `fd = true` on the bus (see
-[`configs/openarm_canfd.toml`](https://github.com/cc/dm_control_rs/blob/main/configs/openarm_canfd.toml)):
+[`configs/openarm_canfd.toml`](https://github.com/cc/can-motor-control/blob/main/configs/openarm_canfd.toml)):
 
 ```toml
 [bus.main]
@@ -29,15 +29,15 @@ vendor    = "damiao"
 **Rust:**
 
 ```rust
-let bus = dm_control::SocketCanBus::open("canfd0", /* fd_enabled = */ true)?;
+let bus = can_motor_control::SocketCanBus::open("canfd0", /* fd_enabled = */ true)?;
 assert!(bus.capabilities().supports_fd);
 ```
 
 **Python:**
 
 ```python
-import dm_control
-bus = dm_control.SocketCanBus("canfd0", fd=True)
+import can_motor_control
+bus = can_motor_control.SocketCanBus("canfd0", fd=True)
 ```
 
 ## How format is chosen
@@ -70,4 +70,4 @@ back, so the FD send/receive and codec-gating paths are exercisable in CI
 without an FD-capable interface. The SocketCAN FD path itself is validated
 against a real or virtual FD interface during hardware bring-up.
 
-[`BusCapabilities`]: https://docs.rs/dm-control
+[`BusCapabilities`]: https://docs.rs/can-motor-control

@@ -40,7 +40,7 @@ This change picks the openarm layering as the skeleton, rebuilds it in Rust with
    L1  CanBus trait       ── send / drain_inbound_nonblocking / raw_fd
 ```
 
-Two trait-object seams: **L1** for transport (multiple transports planned, must mock for tests), **L2a** for codec (multiple vendors planned, must keep upper layers vendor-agnostic). L2a is a tiny trait-only crate (`motor-codec`) with `#![no_std]` and no dependencies beyond `CanFrame`. L2b vendor codecs live in separate crates (`dm-codec` ships in this change; `robostride-codec` etc. are purely additive future crates). L3–L5 in `dm-control` use trait objects (`Box<dyn CanBus>`, `Box<dyn MotorCodec>`) and have zero vendor knowledge.
+Two trait-object seams: **L1** for transport (multiple transports planned, must mock for tests), **L2a** for codec (multiple vendors planned, must keep upper layers vendor-agnostic). L2a is a tiny trait-only crate (`motor-codec`) with `#![no_std]` and no dependencies beyond `CanFrame`. L2b vendor codecs live in separate crates (`damiao-codec` ships in this change; `robostride-codec` etc. are purely additive future crates). L3–L5 in `can-motor-control` use trait objects (`Box<dyn CanBus>`, `Box<dyn MotorCodec>`) and have zero vendor knowledge.
 
 *Alternative considered:* fewer layers (collapse L1+L2 into one transport module, collapse L4+L5 into one robot module). Rejected because L2 is the only thing reusable in a firmware target, and L4 ≠ L5 — L4 is a single homogeneous control unit, L5 is composition of N L4s across M L1s. Merging them blocks future humanoid composition.
 
@@ -83,7 +83,7 @@ The earlier conversation settled sync over async. Multi-bus could naively iterat
 
 *Alternative considered:* one thread per bus with blocking reads. Rejected — adds Send/Sync constraints on Motor/Group state, requires channels for outbound commands, complicates user code.
 
-*Alternative considered:* `async` API (tokio-socketcan). Rejected for v1 — the user picked sync explicitly; defer to an additive `dm-control-async` adapter crate if a real consumer appears.
+*Alternative considered:* `async` API (tokio-socketcan). Rejected for v1 — the user picked sync explicitly; defer to an additive `can-motor-control-async` adapter crate if a real consumer appears.
 
 ### Decision 4 — Generic `Robot` with named groups; group kinds as a discriminated `GroupKind`
 
@@ -192,17 +192,17 @@ Group access by name (`robot["left_arm"]`), motor access by name within group (`
    crates/
      motor-codec/      no_std. trait + common Command/Event/MotorTypeId/Limits.
                        No vendor knowledge. Depends on a CanFrame type only.
-     dm-codec/         no_std. impl MotorCodec for DamiaoCodec.
+     damiao-codec/         no_std. impl MotorCodec for DamiaoCodec.
                        Damiao motor-type table, bit-packing, CAN ID scheme,
                        DamiaoCodecExt for the 0x7FF param sub-protocol.
-     dm-control/       std. depends on motor-codec ONLY (not dm-codec).
+     can-motor-control/       std. depends on motor-codec ONLY (not damiao-codec).
                        Holds Box<dyn MotorCodec>. Features: socketcan (default), mock.
-     dm-control-py/    std, cdylib. PyO3 bindings.
-                       depends on dm-control + dm-codec (binds Damiao support today).
+     can-motor-control-py/    std, cdylib. PyO3 bindings.
+                       depends on can-motor-control + damiao-codec (binds Damiao support today).
 ```
 
 The codec is small (a few hundred lines of bit-packing, enums, tables) and pure. Splitting trait from impl means:
-- `dm-control` has zero vendor knowledge — adding Robostride later doesn't recompile `dm-control`
+- `can-motor-control` has zero vendor knowledge — adding Robostride later doesn't recompile `can-motor-control`
 - Each vendor crate can be `no_std`, reusable in embedded MCU firmware that drives that vendor's motors directly
 - The `motor-codec` crate is tiny and stable; vendors implement against it without coordinating with each other
 
@@ -210,7 +210,7 @@ The cost is two extra `Cargo.toml`s; the discipline forces L2a (the contract) to
 
 *Alternative considered:* single crate with feature flags per vendor. Rejected — `no_std` discipline tends to erode under feature flags; feature unification across the workspace means enabling `damiao` in one consumer forces it on every consumer; separation makes the contract explicit.
 
-*Alternative considered:* three crates (fold the codec trait into `dm-control`). Rejected — `dm-control` is `std` (transport + IO + serde + socketcan); pulling the trait in there blocks embedded reuse of the trait and forces every vendor impl crate to depend on `std`.
+*Alternative considered:* three crates (fold the codec trait into `can-motor-control`). Rejected — `can-motor-control` is `std` (transport + IO + serde + socketcan); pulling the trait in there blocks embedded reuse of the trait and forces every vendor impl crate to depend on `std`.
 
 *Alternative considered:* split transport into its own crate. Deferred — `SocketCanBus` is the only impl in v1; splitting transport into its own crate is YAGNI until a second transport ships.
 
@@ -265,7 +265,7 @@ pub trait MotorCodec: Send + Sync {
 Vendor-exclusive commands (Damiao's `0x7FF` parameter sub-protocol; Robostride's mode-config registers) don't belong on the common trait. They live behind a per-vendor extension trait:
 
 ```rust
-// dm-codec crate
+// damiao-codec crate
 pub trait DamiaoCodecExt {
     fn encode_read_param(&self, motor: MotorRef<'_>, rid: DamiaoRid) -> CanFrame;
     fn encode_write_param<T: Into<ParamValue>>(&self, motor: MotorRef<'_>, rid: DamiaoRid, val: T) -> CanFrame;
@@ -300,9 +300,9 @@ Hot path is `send_mit_command_all`, called at 1kHz with N frames per call. Alloc
 ```
    motor_codec::CodecError → contract-level encoding/decoding errors (unknown motor type,
                              vendor mismatch, command not supported by this codec)
-   dm_codec::Error         → Damiao-specific decoding errors (bad frame format, etc.)
-   dm_control::Error       → wraps CodecError + transport IO + topology + lifecycle
-   PyO3 layer              → flattens to a single dm_control.DmError hierarchy in Python
+   damiao_codec::Error         → Damiao-specific decoding errors (bad frame format, etc.)
+   can_motor_control::Error       → wraps CodecError + transport IO + topology + lifecycle
+   PyO3 layer              → flattens to a single can_motor_control.DmError hierarchy in Python
 ```
 
 Rust gets layered, exhaustive errors; Python gets a flat exception hierarchy that's easy to catch. PyO3 conversions live in the binding crate so the Rust types stay clean.
@@ -438,8 +438,8 @@ This section pins the user-visible Rust and Python APIs at the level of method s
 ### Rust API — single-arm end-to-end
 
 ```rust
-use dm_control::{Robot, RobotBuilder, MotorSpec, SocketCanBus, MitCmd, Command};
-use dm_codec::{DamiaoCodec, DamiaoMotorType::DM4340};
+use can_motor_control::{Robot, RobotBuilder, MotorSpec, SocketCanBus, MitCmd, Command};
+use damiao_codec::{DamiaoCodec, DamiaoMotorType::DM4340};
 use std::time::{Duration, Instant};
 
 // === construction via builder ===
@@ -503,7 +503,7 @@ robot.disable()?;
 Key Rust types and their public surface:
 
 ```rust
-// dm-control crate
+// can-motor-control crate
 
 pub struct Robot { /* ... */ }
 impl Robot {
@@ -622,25 +622,25 @@ pub struct PosForceCmd { pub q: f64,  pub dq: f64, pub i_pu: f64 }
 ```python
 import numpy as np
 import time
-import dm_control
-from dm_control.damiao import DamiaoCodec, MotorType
+import can_motor_control
+from can_motor_control.damiao import DamiaoCodec, MotorType
 
 # === construction via builder ===
 # codec is paired with the transport at add_bus
-robot = (dm_control.RobotBuilder()
+robot = (can_motor_control.RobotBuilder()
     .add_bus("main",
-        dm_control.SocketCanBus("can0", fd=False),
+        can_motor_control.SocketCanBus("can0", fd=False),
         DamiaoCodec())
     .add_arm("arm", bus="main", motors=[
-        dm_control.MotorSpec("j0", MotorType.DM4340, send_id=0x01, recv_id=0x11),
-        dm_control.MotorSpec("j1", MotorType.DM4340, send_id=0x02, recv_id=0x12),
-        dm_control.MotorSpec("j2", MotorType.DM4340, send_id=0x03, recv_id=0x13),
-        dm_control.MotorSpec("j3", MotorType.DM4340, send_id=0x04, recv_id=0x14),
+        can_motor_control.MotorSpec("j0", MotorType.DM4340, send_id=0x01, recv_id=0x11),
+        can_motor_control.MotorSpec("j1", MotorType.DM4340, send_id=0x02, recv_id=0x12),
+        can_motor_control.MotorSpec("j2", MotorType.DM4340, send_id=0x03, recv_id=0x13),
+        can_motor_control.MotorSpec("j3", MotorType.DM4340, send_id=0x04, recv_id=0x14),
     ])
     .build())
 
 # === or: construction via TOML config ===
-# robot = dm_control.Robot.from_config("configs/openarm_single.toml")
+# robot = can_motor_control.Robot.from_config("configs/openarm_single.toml")
 
 # === lifecycle as a context manager: connect+enable on __enter__, disable on __exit__ ===
 with robot:
@@ -681,7 +681,7 @@ with robot:
 Key Python types and surface:
 
 ```python
-# dm_control package
+# can_motor_control package
 
 class SocketCanBus:
     def __init__(self, interface: str, fd: bool = False) -> None: ...
@@ -771,7 +771,7 @@ Notes on the Python surface:
 - All blocking methods (`tick`, `enable`, `disable`, `mit_control`, etc.) release the GIL during the underlying syscall via `Python::allow_threads`.
 - Numpy reads return read-only views where possible; if the underlying memory layout doesn't permit (e.g. struct-of-arrays storage), they return a contiguous copy — documented per method.
 - The context manager protocol gives the cmjang one-liner experience back: `with robot: ...` collapses connect+enable+disable into a block.
-- Vendor codecs live under namespaced submodules (`dm_control.damiao`, future: `dm_control.robostride`) so a user installing the wheel sees only the vendors that shipped, and adding a vendor doesn't risk colliding with existing imports.
+- Vendor codecs live under namespaced submodules (`can_motor_control.damiao`, future: `can_motor_control.robostride`) so a user installing the wheel sees only the vendors that shipped, and adding a vendor doesn't risk colliding with existing imports.
 
 ### TOML config schema
 
@@ -842,5 +842,5 @@ The `vendor` field on each bus selects which `MotorCodec` impl to load; that cod
 - **Whether the `Codec` exposes a raw-frame escape hatch.** Power users may want to send custom frames (calibration sequences, factory-test commands) without going through `Command`. Recommendation: yes, but only on the bus object (`bus.send(&CanFrame)`), not on the codec.
 - **Numpy array layout for batch state reads.** Two options: structured array `(N,)` with fields `('q','dq','tau','tmos','trotor')`, or plain `(N, 5)` float64. Structured is self-documenting; plain is what most controllers actually want. Recommendation: provide both via `arm.states()` (structured) and `arm.q()`, `arm.dq()`, `arm.tau()` (plain views).
 - **Error granularity for hot-path failures.** A motor going into fault mid-loop — should `tick()` return an error, or accumulate into a per-motor fault flag the user polls? Recommendation: latter; `tick()` returns `Ok(())` unless the *bus itself* is broken, and per-motor fault state lives on `Motor`.
-- **Vendor crate naming convention.** `dm-codec`, `robostride-codec`, `myactuator-codec`, etc. — flat names at the workspace level, or grouped under a `vendors/` directory (`vendors/damiao/`, `vendors/robostride/`)? Recommendation: flat at workspace level, grouped under `dm_control.vendors.*` in the Python namespace. Crates can still publish independently to crates.io.
+- **Vendor crate naming convention.** `damiao-codec`, `robostride-codec`, `myactuator-codec`, etc. — flat names at the workspace level, or grouped under a `vendors/` directory (`vendors/damiao/`, `vendors/robostride/`)? Recommendation: flat at workspace level, grouped under `can_motor_control.vendors.*` in the Python namespace. Crates can still publish independently to crates.io.
 - **Trait extension downcast ergonomics.** Calling `group.codec_ext::<DamiaoCodec>()?.encode_write_param(...)` is verbose. Consider whether to expose a `damiao_ext()` convenience on `Arm`/`Gripper` when the codec is known at config-load time, or keep the downcast pattern as the only path. Recommendation: downcast only in v1 — convenience layer is additive once usage shows it's worth the API surface cost.

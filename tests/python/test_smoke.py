@@ -8,22 +8,22 @@ hardware.
 
 import numpy as np
 
-import dm_control
-from dm_control.damiao import DamiaoCodec, MotorType
+import can_motor_control
+from can_motor_control.damiao import DamiaoCodec, MotorType
 
 
-def make_robot() -> dm_control.Robot:
+def make_robot() -> can_motor_control.Robot:
     builder = (
-        dm_control.RobotBuilder()
-        .add_bus("main", dm_control.MockCanBus("vcan_mock"), DamiaoCodec())
+        can_motor_control.RobotBuilder()
+        .add_bus("main", can_motor_control.MockCanBus("vcan_mock"), DamiaoCodec())
         .add_arm(
             "arm",
             bus="main",
             motors=[
-                dm_control.MotorSpec("j0", MotorType.DM4340, send_id=0x01, recv_id=0x11),
-                dm_control.MotorSpec("j1", MotorType.DM4340, send_id=0x02, recv_id=0x12),
-                dm_control.MotorSpec("j2", MotorType.DM4340, send_id=0x03, recv_id=0x13),
-                dm_control.MotorSpec("j3", MotorType.DM4340, send_id=0x04, recv_id=0x14),
+                can_motor_control.MotorSpec("j0", MotorType.DM4340, send_id=0x01, recv_id=0x11),
+                can_motor_control.MotorSpec("j1", MotorType.DM4340, send_id=0x02, recv_id=0x12),
+                can_motor_control.MotorSpec("j2", MotorType.DM4340, send_id=0x03, recv_id=0x13),
+                can_motor_control.MotorSpec("j3", MotorType.DM4340, send_id=0x04, recv_id=0x14),
             ],
         )
     )
@@ -31,15 +31,15 @@ def make_robot() -> dm_control.Robot:
 
 
 def test_imports():
-    assert dm_control.Robot is not None
-    assert dm_control.RobotBuilder is not None
-    assert dm_control.SocketCanBus is not None
-    assert dm_control.MotorSpec is not None
-    assert dm_control.DmError is not None
+    assert can_motor_control.Robot is not None
+    assert can_motor_control.RobotBuilder is not None
+    assert can_motor_control.SocketCanBus is not None
+    assert can_motor_control.MotorSpec is not None
+    assert can_motor_control.DmError is not None
 
 
 def test_damiao_submodule_accessible():
-    from dm_control.damiao import DamiaoCodec, MotorType
+    from can_motor_control.damiao import DamiaoCodec, MotorType
 
     assert MotorType.DM4340 is not None
     assert DamiaoCodec() is not None
@@ -48,11 +48,11 @@ def test_damiao_submodule_accessible():
 def test_canframe_fd_constructor():
     """`CanFrame.fd` builds a genuine CAN-FD frame; `is_fd()`/`payload()` are
     methods that reflect the FD flag and the full payload."""
-    frame = dm_control.CanFrame.fd(0x123, bytes([0xAB] * 24))
+    frame = can_motor_control.CanFrame.fd(0x123, bytes([0xAB] * 24))
     assert frame.is_fd()
     assert frame.payload() == bytes([0xAB] * 24)
     assert frame.len == 24
-    classical = dm_control.CanFrame.classical(0x101, bytes([1, 2, 3, 4]))
+    classical = can_motor_control.CanFrame.classical(0x101, bytes([1, 2, 3, 4]))
     assert not classical.is_fd()
 
 
@@ -61,14 +61,14 @@ def test_fd_mock_bus_runs_full_stack():
     Exercises the FD bus through transport + codec + lifecycle without FD
     hardware (the Damiao codec emits classical frames, valid on an FD bus)."""
     builder = (
-        dm_control.RobotBuilder()
-        .add_bus("main", dm_control.MockCanBus.new_fd("vcanfd_mock"), DamiaoCodec())
+        can_motor_control.RobotBuilder()
+        .add_bus("main", can_motor_control.MockCanBus.new_fd("vcanfd_mock"), DamiaoCodec())
         .add_arm(
             "arm",
             bus="main",
             motors=[
-                dm_control.MotorSpec("j0", MotorType.DM4340, send_id=0x01, recv_id=0x11),
-                dm_control.MotorSpec("j1", MotorType.DM4340, send_id=0x02, recv_id=0x12),
+                can_motor_control.MotorSpec("j0", MotorType.DM4340, send_id=0x01, recv_id=0x11),
+                can_motor_control.MotorSpec("j1", MotorType.DM4340, send_id=0x02, recv_id=0x12),
             ],
         )
     )
@@ -112,7 +112,7 @@ def test_context_manager_lifecycle_and_mit_loop():
 def test_getitem_returns_arm_wrapper():
     robot = make_robot()
     arm = robot["arm"]
-    assert isinstance(arm, dm_control.Arm)
+    assert isinstance(arm, can_motor_control.Arm)
     try:
         robot["ghost"]
     except KeyError:
@@ -132,15 +132,15 @@ def test_attribute_access_not_supported():
 
 
 def test_add_arm_rejects_codec_kwarg():
-    builder = dm_control.RobotBuilder().add_bus(
-        "main", dm_control.MockCanBus("m"), DamiaoCodec()
+    builder = can_motor_control.RobotBuilder().add_bus(
+        "main", can_motor_control.MockCanBus("m"), DamiaoCodec()
     )
     try:
         builder.add_arm(
             "arm",
             bus="main",
             codec=DamiaoCodec(),  # not a valid kwarg
-            motors=[dm_control.MotorSpec("j0", MotorType.DM4340, 1, 0x11)],
+            motors=[can_motor_control.MotorSpec("j0", MotorType.DM4340, 1, 0x11)],
         )
     except TypeError:
         pass
@@ -174,17 +174,17 @@ def test_mit_wrong_dtype_raises_type_error():
 
 
 def test_dmerror_hierarchy():
-    assert issubclass(dm_control.TransportError, dm_control.DmError)
-    assert issubclass(dm_control.CodecError, dm_control.DmError)
-    assert issubclass(dm_control.ConfigError, dm_control.DmError)
-    assert issubclass(dm_control.LifecycleError, dm_control.DmError)
+    assert issubclass(can_motor_control.TransportError, can_motor_control.DmError)
+    assert issubclass(can_motor_control.CodecError, can_motor_control.DmError)
+    assert issubclass(can_motor_control.ConfigError, can_motor_control.DmError)
+    assert issubclass(can_motor_control.LifecycleError, can_motor_control.DmError)
 
 
 def test_tick_before_connect_raises_lifecycle_error():
     robot = make_robot()
     try:
         robot.tick(1000)
-    except dm_control.LifecycleError as e:
+    except can_motor_control.LifecycleError as e:
         assert "NotConnected" in str(e) or "not connected" in str(e).lower()
     else:
         raise AssertionError("expected LifecycleError")

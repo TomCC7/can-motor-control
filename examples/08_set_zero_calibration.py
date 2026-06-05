@@ -123,27 +123,27 @@ def main() -> int:
 
     # Lazy imports kept inside the confirmation branch so dry-run does not
     # require the native wheel.
-    import dm_control
-    from dm_control.damiao import DamiaoCodec
+    import can_motor_control
+    from can_motor_control.damiao import DamiaoCodec
 
     if args.single_motor:
         motor_type = resolve_motor_type(args.motor_type)
-        transport = dm_control.SocketCanBus(args.interface, fd=args.fd)
+        transport = can_motor_control.SocketCanBus(args.interface, fd=args.fd)
         robot = (
-            dm_control.RobotBuilder()
+            can_motor_control.RobotBuilder()
             .add_bus("main", transport, DamiaoCodec())
             .add_arm(
                 "arm",
                 bus="main",
                 motors=[
-                    dm_control.MotorSpec("j0", motor_type, args.send_id, args.recv_id),
+                    can_motor_control.MotorSpec("j0", motor_type, args.send_id, args.recv_id),
                 ],
             )
             .build()
         )
         group_name = "arm"
     else:
-        robot = dm_control.Robot.from_config(args.config)
+        robot = can_motor_control.Robot.from_config(args.config)
         group_name = args.group_name
 
     print("connecting...")

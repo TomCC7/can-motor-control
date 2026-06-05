@@ -4,12 +4,12 @@
 //! Vendor-agnostic motor codec contract.
 //!
 //! This crate defines [`MotorCodec`] — the single trait the rest of the
-//! `dm-control` stack uses to talk to a vendor-specific motor protocol —
+//! `can-motor-control` stack uses to talk to a vendor-specific motor protocol —
 //! together with the shared types every vendor agrees on ([`CanFrame`],
 //! [`Command`], [`Event`], [`MotorTypeId`], [`Limits`], [`BusCapabilities`]).
 //!
-//! The crate is `no_std`. Vendor codec implementations (e.g. `dm-codec`)
-//! live in their own crates; `dm-control` depends on this trait crate only
+//! The crate is `no_std`. Vendor codec implementations (e.g. `damiao-codec`)
+//! live in their own crates; `can-motor-control` depends on this trait crate only
 //! and never on a specific vendor.
 //!
 //! ```

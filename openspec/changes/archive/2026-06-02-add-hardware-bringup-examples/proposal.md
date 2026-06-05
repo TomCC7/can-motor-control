@@ -4,7 +4,7 @@ The current project is implemented, but its runnable examples still behave like 
 
 Mock examples do not validate the intended user path. They prove API shape and CI wiring, but they cannot catch wrong interface setup, wrong CAN IDs, missing motor replies, unsafe zeroing, stale state reads, or confusing control-mode usage. Those belong in tests. The separated examples should instead be controlled hardware scenes where each step adds exactly one kind of risk.
 
-`enactic/openarm_can` points at the missing shape: users first configure SocketCAN, discover or verify one motor, enable/disable, read state, try one control mode with conservative values, then scale to arm/gripper flows and zero-position calibration. `socketcan-rs` also separates pure tests from `vcan0`/host-dependent tests. This change makes `dm_control_rs` examples follow that hardware-first bring-up ladder.
+`enactic/openarm_can` points at the missing shape: users first configure SocketCAN, discover or verify one motor, enable/disable, read state, try one control mode with conservative values, then scale to arm/gripper flows and zero-position calibration. `socketcan-rs` also separates pure tests from `vcan0`/host-dependent tests. This change makes `can-motor-control` examples follow that hardware-first bring-up ladder.
 
 ## What Changes
 

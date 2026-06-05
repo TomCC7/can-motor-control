@@ -1,6 +1,6 @@
-site_name: dm_control
+site_name: can-motor-control
 site_description: Rust-backed control library for Damiao-family CAN motors
-repo_url: https://github.com/cc/dm_control_rs
+repo_url: https://github.com/cc/can-motor-control
 docs_dir: docs
 
 theme:
@@ -31,7 +31,7 @@ plugins:
           # The package lives here; after `maturin develop` it is also
           # importable from the active environment, which is what lets griffe
           # read the docstrings PyO3 bakes into the compiled `_native` module.
-          paths: [crates/dm-control-py/python]
+          paths: [crates/can-motor-control-py/python]
           options:
             # Import the built extension so the runtime __doc__ (authored as
             # Rust `///` comments) is the source of the rendered prose — the
@@ -39,11 +39,11 @@ plugins:
             # signature-only `.pyi` stubs and render no descriptions.
             force_inspection: true
             # The public package re-exports its classes from the compiled
-            # `dm_control._native` module (`from dm_control._native import ...`).
+            # `can_motor_control._native` module (`from can_motor_control._native import ...`).
             # Preload it so griffe inspect-loads the compiled module and those
-            # re-export aliases (e.g. dm_control.Robot -> _native.Robot) resolve.
+            # re-export aliases (e.g. can_motor_control.Robot -> _native.Robot) resolve.
             preload_modules:
-              - dm_control._native
+              - can_motor_control._native
             docstring_style: google
             show_source: false
             show_root_heading: true

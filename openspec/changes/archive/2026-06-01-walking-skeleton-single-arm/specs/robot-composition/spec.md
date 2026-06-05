@@ -257,7 +257,7 @@ The user-visible lifecycle SHALL be exactly: `from_config` (or `builder().build(
 
 ### Requirement: Error enum is layered via thiserror
 
-The `dm_control::Error` enum SHALL use `thiserror::Error` and cover at minimum: `Transport(TransportError)`, `Codec(CodecError)`, `ConfigSchema { .. }`, `ConfigIo(io::Error)`, `UnknownBusName(String)`, `UnknownVendor(String)`, `DuplicateBusName(String)`, `DuplicateGroupName(String)`, `MotorNotSupportedByCodec { vendor: String, motor_type: MotorTypeId, bus_name: String }`, `GripperRequiresOneMotor { got: usize }`, `CommandLengthMismatch { expected: usize, got: usize }`, `NotConnected`, `TopologyLocked`, `FdNotImplementedInV1 { bus_name: String }`, `CanIdCollision { bus_name: String, recv_id: u32, existing: RouteKey, attempted: RouteKey }`. The enum MUST be `#[non_exhaustive]`.
+The `can_motor_control::Error` enum SHALL use `thiserror::Error` and cover at minimum: `Transport(TransportError)`, `Codec(CodecError)`, `ConfigSchema { .. }`, `ConfigIo(io::Error)`, `UnknownBusName(String)`, `UnknownVendor(String)`, `DuplicateBusName(String)`, `DuplicateGroupName(String)`, `MotorNotSupportedByCodec { vendor: String, motor_type: MotorTypeId, bus_name: String }`, `GripperRequiresOneMotor { got: usize }`, `CommandLengthMismatch { expected: usize, got: usize }`, `NotConnected`, `TopologyLocked`, `FdNotImplementedInV1 { bus_name: String }`, `CanIdCollision { bus_name: String, recv_id: u32, existing: RouteKey, attempted: RouteKey }`. The enum MUST be `#[non_exhaustive]`.
 
 #### Scenario: TransportError wraps cleanly
 

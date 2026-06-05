@@ -2,13 +2,13 @@
 
 ## Purpose
 
-Provide a locally buildable and servable documentation site for the `dm_control` Python package, with an auto-generated Python API reference sourced from PyO3 docstrings, integration of existing prose guides, and a dev-only documentation toolchain.
+Provide a locally buildable and servable documentation site for the `can_motor_control` Python package, with an auto-generated Python API reference sourced from PyO3 docstrings, integration of existing prose guides, and a dev-only documentation toolchain.
 
 ## Requirements
 
 ### Requirement: Single local command builds and serves the docs site
 
-The project SHALL provide a single command that builds the `dm_control` native extension and then builds/serves the documentation site locally, with no CI or publishing step required. Running the command on a clean checkout (after dev dependencies are installed) SHALL produce a browsable site.
+The project SHALL provide a single command that builds the `can_motor_control` native extension and then builds/serves the documentation site locally, with no CI or publishing step required. Running the command on a clean checkout (after dev dependencies are installed) SHALL produce a browsable site.
 
 #### Scenario: Developer serves the site locally
 
@@ -27,12 +27,12 @@ The project SHALL provide a single command that builds the `dm_control` native e
 
 ### Requirement: Python API reference is generated from the package
 
-The site SHALL include a Python API reference auto-generated from the `dm_control` package via mkdocstrings/griffe, covering the publicly exported surface (`Robot`, `RobotBuilder`, `Arm`, `Gripper`, `Motor`, `MotorGroup`, `MotorSpec`, `CanFrame`, the bus transports, the `damiao` codec module, and the error types). Member signatures SHALL be rendered, using the `.pyi` stubs where the compiled extension does not expose them.
+The site SHALL include a Python API reference auto-generated from the `can_motor_control` package via mkdocstrings/griffe, covering the publicly exported surface (`Robot`, `RobotBuilder`, `Arm`, `Gripper`, `Motor`, `MotorGroup`, `MotorSpec`, `CanFrame`, the bus transports, the `damiao` codec module, and the error types). Member signatures SHALL be rendered, using the `.pyi` stubs where the compiled extension does not expose them.
 
 #### Scenario: Public class appears in the reference
 
 - **WHEN** the site is built and a user opens the Python API reference page
-- **THEN** each publicly exported class from `dm_control.__all__` is listed with its methods and their signatures
+- **THEN** each publicly exported class from `can_motor_control.__all__` is listed with its methods and their signatures
 
 #### Scenario: Reference stays in sync with the package
 
@@ -42,6 +42,8 @@ The site SHALL include a Python API reference auto-generated from the `dm_contro
 ### Requirement: API prose comes from PyO3 docstrings and reaches the REPL
 
 User-facing documentation prose for the Python API SHALL be authored as Rust `///` doc comments on the PyO3 `#[pyclass]` / `#[pymethods]` items so it compiles into the module's `__doc__`. The same text SHALL be the source rendered on the API reference page, so the rendered site and `help()` cannot diverge.
+All exported classes and exceptions SHALL report `__module__` values under
+`can_motor_control` rather than stale `can_motor_control` or bare native-module names.
 
 #### Scenario: help() shows the documented prose
 
@@ -52,6 +54,11 @@ User-facing documentation prose for the Python API SHALL be authored as Rust `//
 
 - **WHEN** the same item is viewed on the rendered API reference page
 - **THEN** the displayed description matches the docstring authored in the Rust source
+
+#### Scenario: Exported modules use the renamed package
+
+- **WHEN** the built extension is inspected through Python
+- **THEN** public classes and exceptions are reported as belonging to `can_motor_control` or `can_motor_control.damiao`
 
 ### Requirement: Existing prose guides are part of the site
 
@@ -69,9 +76,9 @@ The existing guides under `docs/` (SocketCAN setup, CAN-FD, multi-vendor) SHALL 
 
 ### Requirement: Documentation toolchain is dev-only
 
-The documentation dependencies (mkdocs-material, mkdocstrings/griffe) SHALL be declared in a development/optional dependency group and SHALL NOT be added to the published wheel's runtime dependencies.
+The documentation dependencies (mkdocs-material, mkdocstrings/griffe) SHALL be declared in a development/optional dependency group and SHALL NOT be added to the published `can-motor-control` wheel's runtime dependencies.
 
 #### Scenario: Runtime install excludes docs tooling
 
-- **WHEN** the `dm_control` wheel is installed without the docs extra
+- **WHEN** the `can-motor-control` wheel is installed without the docs extra
 - **THEN** none of the documentation toolchain packages are pulled in as runtime dependencies

@@ -20,30 +20,30 @@ import time
 
 import numpy as np
 
-import dm_control
-from dm_control.damiao import DamiaoCodec, MotorType
+import can_motor_control
+from can_motor_control.damiao import DamiaoCodec, MotorType
 
 
-def build_robot(use_mock: bool, interface: str, fd: bool = False) -> dm_control.Robot:
+def build_robot(use_mock: bool, interface: str, fd: bool = False) -> can_motor_control.Robot:
     if use_mock:
         transport = (
-            dm_control.MockCanBus.new_fd("vcan_mock")
+            can_motor_control.MockCanBus.new_fd("vcan_mock")
             if fd
-            else dm_control.MockCanBus("vcan_mock")
+            else can_motor_control.MockCanBus("vcan_mock")
         )
     else:
-        transport = dm_control.SocketCanBus(interface, fd=fd)
+        transport = can_motor_control.SocketCanBus(interface, fd=fd)
     return (
-        dm_control.RobotBuilder()
+        can_motor_control.RobotBuilder()
         .add_bus("main", transport, DamiaoCodec())
         .add_arm(
             "arm",
             bus="main",
             motors=[
-                dm_control.MotorSpec("j0", MotorType.DM4340, send_id=0x01, recv_id=0x11),
-                dm_control.MotorSpec("j1", MotorType.DM4340, send_id=0x02, recv_id=0x12),
-                dm_control.MotorSpec("j2", MotorType.DM4340, send_id=0x03, recv_id=0x13),
-                dm_control.MotorSpec("j3", MotorType.DM4340, send_id=0x04, recv_id=0x14),
+                can_motor_control.MotorSpec("j0", MotorType.DM4340, send_id=0x01, recv_id=0x11),
+                can_motor_control.MotorSpec("j1", MotorType.DM4340, send_id=0x02, recv_id=0x12),
+                can_motor_control.MotorSpec("j2", MotorType.DM4340, send_id=0x03, recv_id=0x13),
+                can_motor_control.MotorSpec("j3", MotorType.DM4340, send_id=0x04, recv_id=0x14),
             ],
         )
         .build()

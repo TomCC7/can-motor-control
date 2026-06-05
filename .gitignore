@@ -15,3 +15,4 @@ site/
 *.so
 .opencode
 .sisyphus
+.omo

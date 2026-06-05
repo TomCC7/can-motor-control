@@ -2,7 +2,7 @@
 
 ### Requirement: DamiaoCodec implements MotorCodec
 
-The `dm-codec` crate SHALL define a `DamiaoCodec` struct that implements `motor_codec::MotorCodec`. The struct MUST be constructible via `DamiaoCodec::new()` with no required arguments and MUST be `Send + Sync`. It MUST be `Default` so it can be constructed implicitly where ergonomic.
+The `damiao-codec` crate SHALL define a `DamiaoCodec` struct that implements `motor_codec::MotorCodec`. The struct MUST be constructible via `DamiaoCodec::new()` with no required arguments and MUST be `Send + Sync`. It MUST be `Default` so it can be constructed implicitly where ergonomic.
 
 #### Scenario: Constructible and trait-object-compatible
 - **WHEN** a developer writes `let codec: Box<dyn MotorCodec> = Box::new(DamiaoCodec::new());`
@@ -86,7 +86,7 @@ The frame ID MUST equal `motor.send_id` (no offset is added for MIT mode). The f
 
 ### Requirement: DamiaoCodecExt exposes the 0x7FF parameter sub-protocol
 
-The `dm-codec` crate SHALL define a `DamiaoCodecExt` trait with at minimum these methods, all returning `CanFrame`:
+The `damiao-codec` crate SHALL define a `DamiaoCodecExt` trait with at minimum these methods, all returning `CanFrame`:
 - `encode_read_param(motor: MotorRef<'_>, rid: DamiaoRid) -> CanFrame` — packs a frame with ID `0x7FF`, command byte `0x33`, and the target motor's CAN ID + RID
 - `encode_write_param<T: Into<ParamValue>>(motor: MotorRef<'_>, rid: DamiaoRid, val: T) -> CanFrame` — packs with command byte `0x55`
 - `encode_save_to_flash(motor: MotorRef<'_>) -> CanFrame` — packs with command byte `0xAA`
@@ -100,7 +100,7 @@ The `dm-codec` crate SHALL define a `DamiaoCodecExt` trait with at minimum these
 
 ### Requirement: DamiaoRid enumerates the parameter register IDs
 
-The `dm-codec` crate SHALL define a `DamiaoRid` enum covering at minimum the register IDs documented in Damiao's protocol manual: `UV_Value`, `KT_Value`, `OT_Value`, `OC_Value`, `ACC`, `DEC`, `MAX_SPD`, `MST_ID`, `ESC_ID`, `TIMEOUT`, `CTRL_MODE`, `Damp`, `Inertia`, `hw_ver`, `sw_ver`, `SN`, `NPP`, `Rs`, `LS`, `Flux`, `Gr`, `PMAX`, `VMAX`, `TMAX`, `I_BW`, `KP_ASR`, `KI_ASR`, `KP_APR`, `KI_APR`, `OV_Value`, `GREF`, `Deta`, `V_BW`, `IQ_c1`, `VL_c1`, `can_br`, `sub_ver`. The enum MUST be `#[non_exhaustive]` and convertible to `u8` via `From`.
+The `damiao-codec` crate SHALL define a `DamiaoRid` enum covering at minimum the register IDs documented in Damiao's protocol manual: `UV_Value`, `KT_Value`, `OT_Value`, `OC_Value`, `ACC`, `DEC`, `MAX_SPD`, `MST_ID`, `ESC_ID`, `TIMEOUT`, `CTRL_MODE`, `Damp`, `Inertia`, `hw_ver`, `sw_ver`, `SN`, `NPP`, `Rs`, `LS`, `Flux`, `Gr`, `PMAX`, `VMAX`, `TMAX`, `I_BW`, `KP_ASR`, `KI_ASR`, `KP_APR`, `KI_APR`, `OV_Value`, `GREF`, `Deta`, `V_BW`, `IQ_c1`, `VL_c1`, `can_br`, `sub_ver`. The enum MUST be `#[non_exhaustive]` and convertible to `u8` via `From`.
 
 #### Scenario: RID to u8 conversion
 - **WHEN** `u8::from(DamiaoRid::CTRL_MODE)` is called
@@ -118,12 +118,12 @@ A `DamiaoCodec::parse_motor_type(s: &str) -> Option<MotorTypeId>` SHALL accept t
 - **WHEN** `DamiaoCodec::parse_motor_type("DM_DOES_NOT_EXIST")` is called
 - **THEN** it returns `None`
 
-### Requirement: dm-codec crate is no_std
+### Requirement: damiao-codec crate is no_std
 
-The `dm-codec` crate SHALL declare `#![no_std]` and depend only on `motor-codec` and `core`/`alloc`. It MUST NOT depend on `std`, `socketcan`, `serde`, or any IO crate.
+The `damiao-codec` crate SHALL declare `#![no_std]` and depend only on `motor-codec` and `core`/`alloc`. It MUST NOT depend on `std`, `socketcan`, `serde`, or any IO crate.
 
 #### Scenario: Compiles on bare-metal target
-- **WHEN** `cargo build -p dm-codec --no-default-features --target thumbv7em-none-eabihf` is run
+- **WHEN** `cargo build -p damiao-codec --no-default-features --target thumbv7em-none-eabihf` is run
 - **THEN** the build succeeds
 
 ### Requirement: DamiaoCodec emits classical CAN frames in v1 regardless of bus capability

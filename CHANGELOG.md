@@ -10,22 +10,22 @@ Initial walking-skeleton release.
   `CanFrame` (classical + CAN-FD), `FrameFlags`, `BusCapabilities`,
   `MotorTypeId` (non-exhaustive enum), `Command` (MIT / PosVel / Vel /
   PosForce), `Event` (State / ParamReply / Fault), `Limits`, `CodecError`.
-- `dm-codec` crate (no_std): Damiao implementation of `MotorCodec` covering
+- `damiao-codec` crate (no_std): Damiao implementation of `MotorCodec` covering
   13 motor SKUs (DM3507, DM4310, DM4310_48V, DM4340, DM4340_48V, DM6006,
   DM8006, DM8009, DM10010L, DM10010, DMH3510, DMH6215, DMG6220). MIT
   bit-packing, CAN ID offsets (0x100/0x200/0x300), enable/disable/setzero
   (0xFC/0xFD/0xFE). `DamiaoCodecExt` for the 0x7FF parameter sub-protocol.
-- `dm-control` crate: `CanBus` trait, `SocketCanBus` (Linux SocketCAN over
+- `can-motor-control` crate: `CanBus` trait, `SocketCanBus` (Linux SocketCAN over
   raw libc), `MockCanBus` (in-memory loopback for tests), `BusPoller`
   (mio-based multi-bus multiplexing), `Motor`, `MotorGroup`, `Arm`,
   `Gripper` (v1-minimal one-motor), `Generic`, `GroupKind`, `Bus`, `Robot`,
   `RobotBuilder`, `CodecRegistry`, TOML config loader.
-- `dm-control-py` crate: PyO3 bindings, `dm_control` Python package,
-  `dm_control.damiao` submodule, numpy interop, context-manager protocol on
+- `can-motor-control-py` crate: PyO3 bindings, `can_motor_control` Python package,
+  `can_motor_control.damiao` submodule, numpy interop, context-manager protocol on
   `Robot`, GIL release on blocking calls, `DmError` hierarchy
   (`TransportError`, `CodecError`, `ConfigError`, `LifecycleError`),
   `.pyi` type stubs.
-- End-to-end examples: `crates/dm-control/examples/single_arm.rs`,
+- End-to-end examples: `crates/can-motor-control/examples/single_arm.rs`,
   `examples/single_arm.py`.
 - Integration tests for full lifecycle (build → connect → enable → 100-tick
   MIT loop → disable → drop) in both Rust and Python.
@@ -38,9 +38,9 @@ When publishing the workspace to crates.io, the dependency order matters:
 
 ```
 cargo publish -p motor-codec
-cargo publish -p dm-codec
-cargo publish -p dm-control
-# (dm-control-py is published as a wheel via maturin, not crates.io)
+cargo publish -p damiao-codec
+cargo publish -p can-motor-control
+# (can-motor-control-py is published as a wheel via maturin, not crates.io)
 ```
 
 ### Limitations

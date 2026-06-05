@@ -8,13 +8,13 @@
 #   sudo ip link set up vcanfd0
 #
 # Load with:
-#   let mut registry = dm_control::CodecRegistry::new();
-#   dm_codec::register(&mut registry);
-#   let robot = dm_control::Robot::from_config("configs/openarm_canfd.toml", &registry)?;
+#   let mut registry = can_motor_control::CodecRegistry::new();
+#   damiao_codec::register(&mut registry);
+#   let robot = can_motor_control::Robot::from_config("configs/openarm_canfd.toml", &registry)?;
 #
 # Or in Python:
-#   import dm_control
-#   robot = dm_control.Robot.from_config("configs/openarm_canfd.toml")
+#   import can_motor_control
+#   robot = can_motor_control.Robot.from_config("configs/openarm_canfd.toml")
 #
 # Note: the Damiao codec emits classical 8-byte frames even on an FD bus (those
 # are valid CAN-FD frames). Enabling fd here unlocks the FD transport path and

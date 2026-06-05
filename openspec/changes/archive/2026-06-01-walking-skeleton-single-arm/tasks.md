@@ -2,11 +2,11 @@
 
 ## 1. Workspace and CI scaffolding
 
-- [x] 1.1 Impl: create Cargo workspace at repo root with members `crates/motor-codec`, `crates/dm-codec`, `crates/dm-control`, `crates/dm-control-py`; pin `rust-toolchain.toml` to stable 1.75+; populate workspace `[dependencies]` with shared crates (`thiserror`, `serde`, `toml`, `bitflags`, `mio`, `socketcan`, `pyo3`, `numpy`, `nix` or `libc`)
-- [x] 1.2 Test: `cargo metadata --format-version 1` parses successfully; `cargo build --workspace` completes against the empty crates; `cargo tree -p dm-control | grep -v dm-codec` confirms no vendor dependency leak
+- [x] 1.1 Impl: create Cargo workspace at repo root with members `crates/motor-codec`, `crates/damiao-codec`, `crates/can-motor-control`, `crates/can-motor-control-py`; pin `rust-toolchain.toml` to stable 1.75+; populate workspace `[dependencies]` with shared crates (`thiserror`, `serde`, `toml`, `bitflags`, `mio`, `socketcan`, `pyo3`, `numpy`, `nix` or `libc`)
+- [x] 1.2 Test: `cargo metadata --format-version 1` parses successfully; `cargo build --workspace` completes against the empty crates; `cargo tree -p can-motor-control | grep -v damiao-codec` confirms no vendor dependency leak
 - [x] 1.3 Impl: add `.github/workflows/ci.yml` with jobs for `cargo fmt --check`, `cargo clippy --workspace -- -D warnings`, `cargo test --workspace`, and `cargo build -p motor-codec --no-default-features --target thumbv7em-none-eabihf` (no_std verification)
 - [x] 1.4 Test: push a trivial commit; verify CI runs all jobs green on `ubuntu-latest`
-- [x] 1.5 Impl: add `maturin` build job in CI building `dm-control-py` wheel; add `pytest` job running Python tests against built wheel in a venv
+- [x] 1.5 Impl: add `maturin` build job in CI building `can-motor-control-py` wheel; add `pytest` job running Python tests against built wheel in a venv
 - [x] 1.6 Test: CI maturin job produces exactly one wheel artifact tagged for `manylinux_2_28_x86_64` or compatible; pytest job runs with at least one passing placeholder test
 - [x] 1.7 Impl: add top-level `README.md` with project description, installation instructions placeholder, link to `openspec/` for the source of truth
 - [x] 1.8 Test: README links resolve; no broken cross-references in the openspec dir
@@ -30,36 +30,36 @@
 - [x] 2.15 Impl: `Limits` struct (p_max, v_max, t_max as f64); `FrameError` enum (PayloadTooLong, InvalidFdLength, IncompatibleFlags) via `thiserror`
 - [x] 2.16 Test: each error variant renders an informative Display string
 - [x] 2.17 Impl: `MotorCodec` trait with `vendor_name`, `supports`, `limits`, `bind_to_bus`, `encode_enable`, `encode_disable`, `encode_set_zero`, `encode_command`, `decode`; require `Send + Sync`; verify object-safety via `let _: Box<dyn MotorCodec>` line in doc test
-- [x] 2.18 Test: covers motor-codec spec "MotorCodec trait is the vendor-agnostic codec contract" — trait object-safe, dm-control has no vendor dep (asserted by cargo tree filter in CI)
+- [x] 2.18 Test: covers motor-codec spec "MotorCodec trait is the vendor-agnostic codec contract" — trait object-safe, can-motor-control has no vendor dep (asserted by cargo tree filter in CI)
 - [x] 2.19 Impl: `CodecError` enum via `thiserror` with `UnknownMotorType`, `CommandNotSupported`, `DecodeFailed`, `OutOfRange`; `#[non_exhaustive]`
 - [x] 2.20 Test: covers motor-codec spec "CodecError is typed via thiserror" — OutOfRange returned for over-range tau (will be exercised in §3 when DamiaoCodec is implemented; placeholder unit test now confirms variant constructible)
 
-## 3. dm-codec crate (Damiao implementation, no_std)
+## 3. damiao-codec crate (Damiao implementation, no_std)
 
 - [x] 3.1 Impl: `#![no_std]` crate skeleton depending on `motor-codec`; `DamiaoCodec` struct with internal `bound_caps: Option<BusCapabilities>`
-- [x] 3.2 Test: covers dm-codec spec "DamiaoCodec implements MotorCodec" and "dm-codec crate is no_std" — constructible, trait-object-compatible, builds on `thumbv7em-none-eabihf`
+- [x] 3.2 Test: covers damiao-codec spec "DamiaoCodec implements MotorCodec" and "damiao-codec crate is no_std" — constructible, trait-object-compatible, builds on `thumbv7em-none-eabihf`
 - [x] 3.3 Impl: `DamiaoMotorType` enum with all 13 SKU variants; `From<DamiaoMotorType> for MotorTypeId`; `parse_motor_type(&str)` returning `Option<MotorTypeId>`
-- [x] 3.4 Test: covers dm-codec spec "Damiao motor type strings parse to MotorTypeId" — all 13 known SKU strings round-trip; "DM_DOES_NOT_EXIST" returns None
+- [x] 3.4 Test: covers damiao-codec spec "Damiao motor type strings parse to MotorTypeId" — all 13 known SKU strings round-trip; "DM_DOES_NOT_EXIST" returns None
 - [x] 3.5 Impl: limit-param table for all 13 SKUs with (p_max, v_max, t_max) values from Damiao's protocol manual; `supports()`, `limits()` implementations consulting the table
-- [x] 3.6 Test: covers dm-codec spec "Supports the Damiao motor SKUs targeted by v1" — every listed SKU has limits with positive values; DM4340 returns (12.5, 10.0, 28.0); unknown discriminant rejected; `supports(Robostride(0))` returns false
+- [x] 3.6 Test: covers damiao-codec spec "Supports the Damiao motor SKUs targeted by v1" — every listed SKU has limits with positive values; DM4340 returns (12.5, 10.0, 28.0); unknown discriminant rejected; `supports(Robostride(0))` returns false
 - [x] 3.7 Impl: bit-pack utilities `float_to_uint(x, min, max, bits) -> u16`, `uint_to_float(u, min, max, bits) -> f64`, `pack_mit_payload`, `unpack_mit_payload`
 - [x] 3.8 Test: utilities round-trip f64 → bits → f64 within ±1 LSB for each of (16, 12, 12, 12, 12) bit widths; out-of-range inputs clamp to the boundary value
-- [x] 3.9 Impl: `encode_command(Command::Mit)` per dm-codec spec bit layout; `bind_to_bus` stored but unused
-- [x] 3.10 Test: covers dm-codec spec "MIT command encoding matches Damiao bit layout" — zero MIT on DM4340 produces the expected payload bytes (compare against reference Python implementation cycled through the same scaling); out-of-range torque returns `Err(CodecError::OutOfRange { field: "tau" })`
+- [x] 3.9 Impl: `encode_command(Command::Mit)` per damiao-codec spec bit layout; `bind_to_bus` stored but unused
+- [x] 3.10 Test: covers damiao-codec spec "MIT command encoding matches Damiao bit layout" — zero MIT on DM4340 produces the expected payload bytes (compare against reference Python implementation cycled through the same scaling); out-of-range torque returns `Err(CodecError::OutOfRange { field: "tau" })`
 - [x] 3.11 Impl: `encode_command(Command::PosVel)` with `id = 0x100 + send_id`, `id = 0x200 + send_id` for Vel, `id = 0x300 + send_id` for PosForce; integer-scale dq*100 and i_pu*10000 for PosForce
-- [x] 3.12 Test: covers dm-codec specs "PosVel uses CAN ID offset 0x100", "Vel uses CAN ID offset 0x200", "PosForce uses CAN ID offset 0x300" — frame IDs and payload byte layouts match the spec verbatim
+- [x] 3.12 Test: covers damiao-codec specs "PosVel uses CAN ID offset 0x100", "Vel uses CAN ID offset 0x200", "PosForce uses CAN ID offset 0x300" — frame IDs and payload byte layouts match the spec verbatim
 - [x] 3.13 Impl: `encode_enable`, `encode_disable`, `encode_set_zero` producing the `[0xFF; 7] ++ [0xFC|0xFD|0xFE]` patterns
-- [x] 3.14 Test: covers dm-codec spec "encode_enable / encode_disable / encode_set_zero use the special command pattern" — each frame has correct ID, len 8, payload pattern
+- [x] 3.14 Test: covers damiao-codec spec "encode_enable / encode_disable / encode_set_zero use the special command pattern" — each frame has correct ID, len 8, payload pattern
 - [x] 3.15 Impl: `decode` parsing state-response frames with command byte `0x11`; unpack q, dq, tau via limit-scaled `uint_to_float`; unpack t_mos, t_rotor from dedicated bytes; return `Ok(None)` for foreign frames; `Err(CodecError::DecodeFailed)` for malformed Damiao-shaped frames
-- [x] 3.16 Test: covers dm-codec spec "decode parses Damiao state response frames" — round-trip MIT state frame; non-Damiao frame returns Ok(None); truncated payload returns DecodeFailed
+- [x] 3.16 Test: covers damiao-codec spec "decode parses Damiao state response frames" — round-trip MIT state frame; non-Damiao frame returns Ok(None); truncated payload returns DecodeFailed
 - [x] 3.17 Impl: `DamiaoRid` enum (`#[non_exhaustive]`) with all documented register IDs; `From<DamiaoRid> for u8`
-- [x] 3.18 Test: covers dm-codec spec "DamiaoRid enumerates the parameter register IDs" — CTRL_MODE → expected byte value
+- [x] 3.18 Test: covers damiao-codec spec "DamiaoRid enumerates the parameter register IDs" — CTRL_MODE → expected byte value
 - [x] 3.19 Impl: `DamiaoCodecExt` trait with `encode_read_param`, `encode_write_param`, `encode_save_to_flash`, `encode_refresh`; impl for `DamiaoCodec`
-- [x] 3.20 Test: covers dm-codec spec "DamiaoCodecExt exposes the 0x7FF parameter sub-protocol" — write_param frame layout: id 0x7FF, payload bytes match spec; read_param uses 0x33; save uses 0xAA; refresh uses 0xCC
+- [x] 3.20 Test: covers damiao-codec spec "DamiaoCodecExt exposes the 0x7FF parameter sub-protocol" — write_param frame layout: id 0x7FF, payload bytes match spec; read_param uses 0x33; save uses 0xAA; refresh uses 0xCC
 - [x] 3.21 Impl: assert via test that `DamiaoCodec` emits classical frames regardless of bound bus FD capability (use a `MockBusCaps` value to bind FD-capable caps; assert emitted frames have `FD_FORMAT` unset)
-- [x] 3.22 Test: covers dm-codec spec "DamiaoCodec emits classical CAN frames in v1 regardless of bus capability" — both classical-bound and (mock) FD-bound paths produce non-FD frames
+- [x] 3.22 Test: covers damiao-codec spec "DamiaoCodec emits classical CAN frames in v1 regardless of bus capability" — both classical-bound and (mock) FD-bound paths produce non-FD frames
 
-## 4. dm-control: transport layer
+## 4. can-motor-control: transport layer
 
 - [x] 4.1 Impl: `CanBus` trait (object-safe, `Send`) with `name`, `capabilities`, `send`, `drain_inbound_nonblocking`, `raw_fd`; `TransportError` enum (`#[non_exhaustive]`) via `thiserror` covering all variants listed in can-transport spec
 - [x] 4.2 Test: covers can-transport specs "CanBus trait defines the transport contract" and "Transport errors are typed via thiserror" — `Box<dyn CanBus>` compiles; trait surface contains exactly the documented methods; `FdNotImplementedInV1` Display includes "CAN-FD is reserved for a future change; set fd=false"
@@ -74,7 +74,7 @@
 - [x] 4.11 Impl: `BusPoller` wrapping `mio::Poll`; methods `register(token, raw_fd)`, `wait(deadline) -> Vec<Token>`; handle `EINTR` correctly
 - [x] 4.12 Test: covers can-transport spec "Multiple buses can be multiplexed via poll(2)" — wake on first readable bus; deadline expires on quiet buses within deadline+1ms
 
-## 5. dm-control: Motor, MotorGroup, Arm, Gripper, Generic
+## 5. can-motor-control: Motor, MotorGroup, Arm, Gripper, Generic
 
 - [x] 5.1 Impl: `Motor` struct (identity fields private; state fields with crate-private setters via `pub(crate)`); public getters as specified; `FaultCode` placeholder enum
 - [x] 5.2 Test: covers motor-group spec "Motor holds identity and a state cache" and "Motor state is updated only by group dispatch" — newly constructed Motor has zero state; `pub(crate)` setters update; user code cannot mutate state (verify via `trybuild` compile-fail test)
@@ -91,7 +91,7 @@
 - [x] 5.13 Impl: `enable_all`, `disable_all`, `set_zero_all` on `MotorGroup` (delegated to via Arm/Gripper/Generic); encode each via `bus.codec`, send via `bus.transport`
 - [x] 5.14 Test: covers motor-group spec "Group lifecycle commands batch over all motors" — three-motor arm enable produces three frames in motor insertion order via MockCanBus's `sent_frames()` snapshot; each frame matches `bus.codec.encode_enable` output
 
-## 6. dm-control: Bus, Robot, RobotBuilder, lifecycle, tick
+## 6. can-motor-control: Bus, Robot, RobotBuilder, lifecycle, tick
 
 - [x] 6.1 Impl: `Bus` struct with `transport: Box<dyn CanBus>`, `codec: Box<dyn MotorCodec>`, `routes: HashMap<u32, RouteKey>`; `vendor`, `capabilities`, `codec_supports` accessors; `RouteKey { group_name, motor_index }`
 - [x] 6.2 Test: covers robot-composition spec "Bus struct bundles a transport and a vendor codec" — `bus.vendor()` and `bus.capabilities()` round-trip; one codec instance per bus regardless of group count
@@ -111,12 +111,12 @@
 - [x] 6.16 Test: covers robot-composition spec "Lifecycle methods are explicit and ordered" — tick before connect returns `NotConnected`; disable without enable is no-op sending zero frames
 - [x] 6.17 Impl: `Drop for Robot` closes every bus's underlying socket; non-panicking; no implicit disable
 - [x] 6.18 Test: covers robot-composition spec "Drop closes all sockets" — fds previously returned by `bus.raw_fd()` are closed after drop (verify via /proc/self/fd snapshot before/after)
-- [x] 6.19 Impl: `dm_control::Error` enum via `thiserror` with all variants listed in robot-composition spec including `FdNotImplementedInV1`, `CanIdCollision`
+- [x] 6.19 Impl: `can_motor_control::Error` enum via `thiserror` with all variants listed in robot-composition spec including `FdNotImplementedInV1`, `CanIdCollision`
 - [x] 6.20 Test: covers robot-composition spec "Error enum is layered via thiserror" — TransportError wraps cleanly into Error::Transport without losing inner variant; each variant's Display string contains the identifying information for diagnostics
 - [x] 6.21 Impl: assert that no `MotorGroup`/`Arm`/`Gripper`/`Generic` method body calls `drain_inbound_nonblocking` — enforce via a `grep` test in CI that runs against the source files
 - [x] 6.22 Test: covers robot-composition spec "Sends are never coupled to inbound reads" — `arm.mit_control` produces exactly N send calls and zero drain calls on `MockCanBus::recorded_calls()`; grep test passes
 
-## 7. dm-control: TOML config loader
+## 7. can-motor-control: TOML config loader
 
 - [x] 7.1 Impl: serde-derived `RobotConfig`, `BusConfig`, `GroupConfig`, `MotorConfig` types; deny unknown fields via `#[serde(deny_unknown_fields)]`; reject `vendor` key on group with a custom error path
 - [x] 7.2 Test: covers robot-composition spec "TOML config schema is well-defined" — minimal config parses; unknown bus key rejected with offending key in message; bus name reference validated; vendor-on-group rejected with the documented "vendor belongs on [bus.]" hint
@@ -127,16 +127,16 @@
 - [x] 7.7 Impl: write `configs/openarm_single.toml` matching the example in design.md API surface section
 - [x] 7.8 Test: `Robot::from_config("configs/openarm_single.toml")` returns Ok and the loaded robot has expected bus_names and group_names
 
-## 8. dm-control-py: PyO3 bindings + Python smoke tests
+## 8. can-motor-control-py: PyO3 bindings + Python smoke tests
 
-- [x] 8.1 Impl: `dm-control-py/Cargo.toml` with `cdylib`, `pyo3`, `numpy`; `maturin.pyproject.toml`; module entry point exporting `dm_control` Python module
+- [x] 8.1 Impl: `can-motor-control-py/Cargo.toml` with `cdylib`, `pyo3`, `numpy`; `maturin.pyproject.toml`; module entry point exporting `can_motor_control` Python module
 - [x] 8.2 Test: covers python-bindings spec "maturin build succeeds on Linux x86_64 stable" — `maturin build --release` produces a manylinux wheel; `pip install` into venv with only numpy preinstalled succeeds
 - [x] 8.3 Impl: `PyCanFrame` wrapper exposing `id`, `flags`, `len`, `payload()` (returns bytes), `is_fd()`, `is_extended()`; classmethods `classical(id, payload)` and `fd(id, payload)`
-- [x] 8.4 Test: `dm_control.CanFrame.classical(0x101, b"\xff" * 8).payload() == b"\xff" * 8`; `CanFrame.fd(0x101, b"\x00" * 9)` raises ValueError; `is_fd()` reflects flag
+- [x] 8.4 Test: `can_motor_control.CanFrame.classical(0x101, b"\xff" * 8).payload() == b"\xff" * 8`; `CanFrame.fd(0x101, b"\x00" * 9)` raises ValueError; `is_fd()` reflects flag
 - [x] 8.5 Impl: `PyMotorSpec` wrapper; `PySocketCanBus` with `__init__(interface, fd=False)` that raises `TransportError` when `fd=True`
-- [x] 8.6 Test: covers python-bindings spec "SocketCanBus(fd=True) raises an actionable error in v1" — `SocketCanBus("vcan0", fd=False)` works on a present vcan0 (gate on env), `SocketCanBus("vcan0", fd=True)` raises `dm_control.TransportError` with substring "CAN-FD is reserved"
-- [x] 8.7 Impl: `dm_control.damiao` submodule with `PyDamiaoCodec` and `MotorType` enum (Python IntEnum exposing all 13 SKUs)
-- [x] 8.8 Test: covers python-bindings spec "Vendor codecs are namespaced under dm_control." — `from dm_control.damiao import DamiaoCodec, MotorType` succeeds; `MotorType.DM4340` accessible; `DamiaoCodec()` instantiable
+- [x] 8.6 Test: covers python-bindings spec "SocketCanBus(fd=True) raises an actionable error in v1" — `SocketCanBus("vcan0", fd=False)` works on a present vcan0 (gate on env), `SocketCanBus("vcan0", fd=True)` raises `can_motor_control.TransportError` with substring "CAN-FD is reserved"
+- [x] 8.7 Impl: `can_motor_control.damiao` submodule with `PyDamiaoCodec` and `MotorType` enum (Python IntEnum exposing all 13 SKUs)
+- [x] 8.8 Test: covers python-bindings spec "Vendor codecs are namespaced under can_motor_control." — `from can_motor_control.damiao import DamiaoCodec, MotorType` succeeds; `MotorType.DM4340` accessible; `DamiaoCodec()` instantiable
 - [x] 8.9 Impl: `PyRobotBuilder` with `add_bus(name, transport, codec)`, `add_arm(name, *, bus, motors)`, `add_gripper(name, *, bus, motor)`, `add_generic(name, *, bus, motors)`, `build`
 - [x] 8.10 Test: covers python-bindings spec "RobotBuilder.add_bus accepts (name, transport, codec)" and "RobotBuilder.add_arm does NOT accept a codec parameter" — chained call returns builder; codec.bind_to_bus invoked once (assert via mock codec exposing a Python-visible call counter); `builder.add_arm(codec=...)` raises TypeError
 - [x] 8.11 Impl: `PyRobot` with `from_config` classmethod, `connect`, `enable`, `disable`, `tick`, `__enter_`_, `__exit__`, `__getitem__`, `__contains__`, `group_names`, `bus_names`
@@ -148,10 +148,10 @@
 - [x] 8.17 Impl: wrap all blocking syscalls (tick, enable, disable, send methods, enable_all, disable_all) in `Python::allow_threads`
 - [x] 8.18 Test: covers python-bindings spec "Blocking methods release the GIL" — spawn two Python threads, one running 100ms tick, the other incrementing a counter; assert counter advanced by >1 during the tick window
 - [x] 8.19 Impl: PyO3 `create_exception!` for `DmError` (root) and subclasses `TransportError`, `CodecError`, `ConfigError`, `LifecycleError`; map every Rust `Error` variant in a `From<Error> for PyErr` impl
-- [x] 8.20 Test: covers python-bindings spec "Errors raise a DmError hierarchy" — `Err(TransportError::Io(_))` raises `dm_control.TransportError` catchable as `dm_control.DmError`; `tick` before `connect` raises `LifecycleError` naming NotConnected
+- [x] 8.20 Test: covers python-bindings spec "Errors raise a DmError hierarchy" — `Err(TransportError::Io(_))` raises `can_motor_control.TransportError` catchable as `can_motor_control.DmError`; `tick` before `connect` raises `LifecycleError` naming NotConnected
 - [x] 8.21 Impl: TOML loader exposed via `Robot.from_config(path)`; `fd = true` raises `ConfigError`
-- [x] 8.22 Test: covers python-bindings spec "TOML fd = true raises ConfigError at load time" — loading TOML with `fd = true` raises `dm_control.ConfigError` whose message names the offending bus and "fd = false"
-- [x] 8.23 Impl: ship `.pyi` type stubs (either embedded in the wheel or as a sibling `dm_control-stubs` package) covering all public symbols
+- [x] 8.22 Test: covers python-bindings spec "TOML fd = true raises ConfigError at load time" — loading TOML with `fd = true` raises `can_motor_control.ConfigError` whose message names the offending bus and "fd = false"
+- [x] 8.23 Impl: ship `.pyi` type stubs (either embedded in the wheel or as a sibling `can_motor_control-stubs` package) covering all public symbols
 - [x] 8.24 Test: covers python-bindings spec "Type stubs accompany the wheel" — `mypy --strict tests/python/test_types.py` reports zero "Cannot find module" or "has no attribute" errors
 - [x] 8.25 Impl: write `tests/python/test_smoke.py` constructing a Robot with `MockCanBus`, running enable, 10-tick control loop with MIT commands, asserting expected frame count, running disable
 - [x] 8.26 Test: covers python-bindings spec "Python smoke test runs against the MockCanBus" — CI pytest job runs smoke test green; assertion includes nonzero sent and received frame counts via the mock loopback
@@ -177,5 +177,5 @@
 - [x] 10.6 Test: `cargo doc --workspace --no-deps -- -D rustdoc::broken_intra_doc_links` runs green in CI
 - [x] 10.7 Impl: `LICENSE` file (Apache-2.0 + MIT dual license is the Rust ecosystem default; confirm with user before committing)
 - [x] 10.8 Impl: `CHANGELOG.md` with `## v0.1.0 (unreleased)` entry summarizing the walking skeleton
-- [x] 10.9 Test: `cargo publish --dry-run -p motor-codec` and analogous for dm-codec, dm-control succeed (no metadata or license issues)
+- [x] 10.9 Test: `cargo publish --dry-run -p motor-codec` and analogous for damiao-codec, can-motor-control succeed (no metadata or license issues)
 

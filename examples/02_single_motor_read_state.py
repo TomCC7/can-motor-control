@@ -68,18 +68,18 @@ def main() -> int:
         fd=args.fd,
     )
 
-    import dm_control
-    from dm_control.damiao import DamiaoCodec
+    import can_motor_control
+    from can_motor_control.damiao import DamiaoCodec
 
-    transport = dm_control.SocketCanBus(args.interface, fd=args.fd)
+    transport = can_motor_control.SocketCanBus(args.interface, fd=args.fd)
     robot = (
-        dm_control.RobotBuilder()
+        can_motor_control.RobotBuilder()
         .add_bus("main", transport, DamiaoCodec())
         .add_arm(
             "arm",
             bus="main",
             motors=[
-                dm_control.MotorSpec("j0", motor_type, args.send_id, args.recv_id),
+                can_motor_control.MotorSpec("j0", motor_type, args.send_id, args.recv_id),
             ],
         )
         .build()

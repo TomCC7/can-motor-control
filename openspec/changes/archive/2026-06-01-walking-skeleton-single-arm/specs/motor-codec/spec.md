@@ -2,15 +2,15 @@
 
 ### Requirement: MotorCodec trait is the vendor-agnostic codec contract
 
-The `motor-codec` crate SHALL define an object-safe `MotorCodec: Send + Sync` trait that every vendor codec implementation must satisfy. The trait MUST NOT use associated types so that `Box<dyn MotorCodec>` is usable in upper layers. It MUST be the single point through which `dm-control` interacts with vendor-specific protocol details — `dm-control` MUST NOT depend on any vendor codec crate. A single trait MUST handle both classical CAN and CAN-FD; there is no separate `MotorCodecFd` sibling trait. Codecs MAY choose to emit classical or CAN-FD frames based on the bound bus capabilities; both code paths produce the same unified `CanFrame` type with the `FD_FORMAT` flag distinguishing them.
+The `motor-codec` crate SHALL define an object-safe `MotorCodec: Send + Sync` trait that every vendor codec implementation must satisfy. The trait MUST NOT use associated types so that `Box<dyn MotorCodec>` is usable in upper layers. It MUST be the single point through which `can-motor-control` interacts with vendor-specific protocol details — `can-motor-control` MUST NOT depend on any vendor codec crate. A single trait MUST handle both classical CAN and CAN-FD; there is no separate `MotorCodecFd` sibling trait. Codecs MAY choose to emit classical or CAN-FD frames based on the bound bus capabilities; both code paths produce the same unified `CanFrame` type with the `FD_FORMAT` flag distinguishing them.
 
 #### Scenario: Trait is object-safe
 - **WHEN** a developer writes `let codec: Box<dyn MotorCodec> = Box::new(DamiaoCodec::new());`
 - **THEN** the code compiles without "the trait `MotorCodec` is not dyn compatible" errors
 
-#### Scenario: dm-control has no vendor dependency
-- **WHEN** `cargo tree -p dm-control` is run
-- **THEN** the output MUST NOT contain `dm-codec` or any other vendor codec crate
+#### Scenario: can-motor-control has no vendor dependency
+- **WHEN** `cargo tree -p can-motor-control` is run
+- **THEN** the output MUST NOT contain `damiao-codec` or any other vendor codec crate
 
 ### Requirement: motor-codec crate is no_std
 
@@ -103,7 +103,7 @@ An `Event` enum SHALL exist in `motor-codec` covering at minimum `State { motor_
 
 ### Requirement: vendor-specific operations require downcast
 
-The `MotorCodec` trait SHALL NOT expose any vendor-exclusive command (e.g. Damiao's parameter sub-protocol on CAN ID `0x7FF`). Vendor-specific operations MUST be defined in per-vendor extension traits in the vendor's own crate (e.g. `DamiaoCodecExt` in `dm-codec`). Callers reach them via `&dyn Any` downcast from the boxed codec.
+The `MotorCodec` trait SHALL NOT expose any vendor-exclusive command (e.g. Damiao's parameter sub-protocol on CAN ID `0x7FF`). Vendor-specific operations MUST be defined in per-vendor extension traits in the vendor's own crate (e.g. `DamiaoCodecExt` in `damiao-codec`). Callers reach them via `&dyn Any` downcast from the boxed codec.
 
 #### Scenario: Damiao param write reachable via downcast
 - **WHEN** user code calls `group.codec_ext::<DamiaoCodec>()` on a Damiao-backed group

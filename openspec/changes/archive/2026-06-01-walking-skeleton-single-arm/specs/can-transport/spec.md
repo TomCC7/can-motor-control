@@ -2,7 +2,7 @@
 
 ### Requirement: CanBus trait defines the transport contract
 
-The `motor-codec` and `dm-control` crates SHALL depend on a single `CanBus` trait that defines every operation a CAN transport must support. The trait MUST be object-safe so that `Box<dyn CanBus>` is usable as a field type. The trait MUST require `Send` so that buses can be owned by groups that may be moved between threads (background IO thread, future async adapter). The trait MUST NOT require `Sync` — buses are owned mutably by their `Robot`. A single CanBus trait MUST handle both classical CAN and CAN-FD; there is no separate `CanFdBus` trait.
+The `motor-codec` and `can-motor-control` crates SHALL depend on a single `CanBus` trait that defines every operation a CAN transport must support. The trait MUST be object-safe so that `Box<dyn CanBus>` is usable as a field type. The trait MUST require `Send` so that buses can be owned by groups that may be moved between threads (background IO thread, future async adapter). The trait MUST NOT require `Sync` — buses are owned mutably by their `Robot`. A single CanBus trait MUST handle both classical CAN and CAN-FD; there is no separate `CanFdBus` trait.
 
 #### Scenario: Trait is object-safe
 - **WHEN** a developer writes `let bus: Box<dyn CanBus> = Box::new(SocketCanBus::open("vcan0", false)?);`
@@ -169,7 +169,7 @@ A `MockCanBus` impl SHALL be provided behind the `mock` feature (enabled by defa
 
 ### Requirement: Multiple buses can be multiplexed via poll(2)
 
-The `dm-control` crate SHALL provide a `BusPoller` helper that registers `raw_fd`s from multiple `Box<dyn CanBus>` instances with `mio::Poll` and wakes when any of them have data available. The helper MUST honor an overall deadline so a single tick has a bounded duration even if no bus becomes readable. Buses that return `None` from `raw_fd` MUST be polled out-of-band (the helper documents this constraint; out-of-band polling itself is out of v1 scope).
+The `can-motor-control` crate SHALL provide a `BusPoller` helper that registers `raw_fd`s from multiple `Box<dyn CanBus>` instances with `mio::Poll` and wakes when any of them have data available. The helper MUST honor an overall deadline so a single tick has a bounded duration even if no bus becomes readable. Buses that return `None` from `raw_fd` MUST be polled out-of-band (the helper documents this constraint; out-of-band polling itself is out of v1 scope).
 
 #### Scenario: Wake on first readable bus
 - **WHEN** three buses are registered and a frame arrives on the second bus

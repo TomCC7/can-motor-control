@@ -1,32 +1,32 @@
 ## ADDED Requirements
 
-### Requirement: dm_control package is importable after wheel install
+### Requirement: can_motor_control package is importable after wheel install
 
-A wheel produced by `maturin build --release` SHALL install a Python package named `dm_control` such that `import dm_control` succeeds on a fresh Python 3.10+ environment with only `numpy` already installed. The wheel MUST be self-contained (no runtime native dependencies beyond the system libc).
+A wheel produced by `maturin build --release` SHALL install a Python package named `can_motor_control` such that `import can_motor_control` succeeds on a fresh Python 3.10+ environment with only `numpy` already installed. The wheel MUST be self-contained (no runtime native dependencies beyond the system libc).
 
 #### Scenario: Fresh-env import
 - **WHEN** `pip install <wheel>` is run on a fresh venv that has only `numpy`
-- **AND** `python -c "import dm_control; print(dm_control.__version__)"` is executed
+- **AND** `python -c "import can_motor_control; print(can_motor_control.__version__)"` is executed
 - **THEN** the command prints the version and exits with status 0
 
-### Requirement: Top-level types are exposed at dm_control
+### Requirement: Top-level types are exposed at can_motor_control
 
-The `dm_control` namespace SHALL expose `Robot`, `RobotBuilder`, `SocketCanBus`, `MotorSpec`, `DmError` at the top level. Group wrapper classes (`Arm`, `Gripper`, `MotorGroup`) and `Motor` SHALL be exposed for type-checking purposes but typically obtained via accessor methods rather than constructed directly.
+The `can_motor_control` namespace SHALL expose `Robot`, `RobotBuilder`, `SocketCanBus`, `MotorSpec`, `DmError` at the top level. Group wrapper classes (`Arm`, `Gripper`, `MotorGroup`) and `Motor` SHALL be exposed for type-checking purposes but typically obtained via accessor methods rather than constructed directly.
 
 #### Scenario: Direct imports succeed
-- **WHEN** `from dm_control import Robot, RobotBuilder, SocketCanBus, MotorSpec, DmError` is executed
+- **WHEN** `from can_motor_control import Robot, RobotBuilder, SocketCanBus, MotorSpec, DmError` is executed
 - **THEN** the import succeeds without error
 
-### Requirement: Vendor codecs are namespaced under dm_control.<vendor>
+### Requirement: Vendor codecs are namespaced under can_motor_control.<vendor>
 
-Vendor codec classes SHALL be exposed under a vendor-specific submodule, e.g. `dm_control.damiao.DamiaoCodec`, `dm_control.damiao.MotorType` (the Damiao SKU enum). Adding a future vendor MUST NOT collide with existing imports. Vendor codecs are passed to `RobotBuilder.add_bus` (alongside the transport); they are NOT passed to `add_arm` / `add_gripper` / `add_generic`, because codec ownership in v1 is per-bus, not per-group.
+Vendor codec classes SHALL be exposed under a vendor-specific submodule, e.g. `can_motor_control.damiao.DamiaoCodec`, `can_motor_control.damiao.MotorType` (the Damiao SKU enum). Adding a future vendor MUST NOT collide with existing imports. Vendor codecs are passed to `RobotBuilder.add_bus` (alongside the transport); they are NOT passed to `add_arm` / `add_gripper` / `add_generic`, because codec ownership in v1 is per-bus, not per-group.
 
 #### Scenario: Damiao codec accessible
-- **WHEN** `from dm_control.damiao import DamiaoCodec, MotorType` is executed
+- **WHEN** `from can_motor_control.damiao import DamiaoCodec, MotorType` is executed
 - **THEN** the import succeeds and `MotorType.DM4340` is accessible
 
 #### Scenario: RobotBuilder.add_bus accepts (name, transport, codec)
-- **WHEN** Python code calls `dm_control.RobotBuilder().add_bus("main", bus, dm_control.damiao.DamiaoCodec())`
+- **WHEN** Python code calls `can_motor_control.RobotBuilder().add_bus("main", bus, can_motor_control.damiao.DamiaoCodec())`
 - **THEN** the call returns the builder for chaining and the codec's `bind_to_bus` has been invoked exactly once with the transport's capabilities
 
 #### Scenario: RobotBuilder.add_arm does NOT accept a codec parameter
@@ -51,7 +51,7 @@ Vendor codec classes SHALL be exposed under a vendor-specific submodule, e.g. `d
 
 #### Scenario: Arm group returns Arm wrapper
 - **WHEN** `arm = robot["arm"]` is called for a group constructed as `add_arm("arm", ...)`
-- **THEN** `isinstance(arm, dm_control.Arm)` is true
+- **THEN** `isinstance(arm, can_motor_control.Arm)` is true
 
 #### Scenario: Missing group raises KeyError
 - **WHEN** `robot["ghost"]` is called for a group not in the robot
@@ -99,19 +99,19 @@ Vendor codec classes SHALL be exposed under a vendor-specific submodule, e.g. `d
 
 ### Requirement: Errors raise a DmError hierarchy
 
-All Rust `Error` variants SHALL be mapped to Python exceptions that subclass `dm_control.DmError`. The hierarchy MUST include at minimum: `DmError` (root), `TransportError`, `CodecError`, `ConfigError`, `LifecycleError`. Each subclass's `args` MUST include the underlying Rust error's stringified detail and any structured fields (e.g. `motor_type`).
+All Rust `Error` variants SHALL be mapped to Python exceptions that subclass `can_motor_control.DmError`. The hierarchy MUST include at minimum: `DmError` (root), `TransportError`, `CodecError`, `ConfigError`, `LifecycleError`. Each subclass's `args` MUST include the underlying Rust error's stringified detail and any structured fields (e.g. `motor_type`).
 
 #### Scenario: Transport failure raises TransportError
 - **WHEN** a bus operation fails with `Err(TransportError::Io(_))` in Rust
-- **THEN** the Python call raises `dm_control.TransportError` and the exception is also catchable as `dm_control.DmError`
+- **THEN** the Python call raises `can_motor_control.TransportError` and the exception is also catchable as `can_motor_control.DmError`
 
 #### Scenario: NotConnected raises LifecycleError
 - **WHEN** `robot.tick(1000)` is called before `robot.connect()`
-- **THEN** the call raises `dm_control.LifecycleError` with a message naming `NotConnected`
+- **THEN** the call raises `can_motor_control.LifecycleError` with a message naming `NotConnected`
 
 ### Requirement: SocketCanBus(fd=True) raises an actionable error in v1
 
-The `SocketCanBus.__init__` binding SHALL accept an `fd: bool = False` keyword argument. Calling `SocketCanBus(interface, fd=True)` in v1 MUST raise `dm_control.TransportError` whose message includes the phrase "CAN-FD is reserved for a future change; set fd=false". The error MUST be raised before any socket-opening syscall is issued.
+The `SocketCanBus.__init__` binding SHALL accept an `fd: bool = False` keyword argument. Calling `SocketCanBus(interface, fd=True)` in v1 MUST raise `can_motor_control.TransportError` whose message includes the phrase "CAN-FD is reserved for a future change; set fd=false". The error MUST be raised before any socket-opening syscall is issued.
 
 #### Scenario: fd=False succeeds
 - **WHEN** `SocketCanBus("vcan0", fd=False)` is constructed against a present `vcan0`
@@ -119,27 +119,27 @@ The `SocketCanBus.__init__` binding SHALL accept an `fd: bool = False` keyword a
 
 #### Scenario: fd=True rejected
 - **WHEN** `SocketCanBus("vcan0", fd=True)` is constructed
-- **THEN** the call raises `dm_control.TransportError` with the substring "CAN-FD is reserved" in the message
+- **THEN** the call raises `can_motor_control.TransportError` with the substring "CAN-FD is reserved" in the message
 
 ### Requirement: TOML fd = true raises ConfigError at load time
 
-`Robot.from_config(path)` SHALL raise `dm_control.ConfigError` if the TOML file contains any `[bus.<name>]` table with `fd = true`. The error message MUST name the offending bus and direct the user to set `fd = false`. The error MUST be raised before any socket is opened.
+`Robot.from_config(path)` SHALL raise `can_motor_control.ConfigError` if the TOML file contains any `[bus.<name>]` table with `fd = true`. The error message MUST name the offending bus and direct the user to set `fd = false`. The error MUST be raised before any socket is opened.
 
 #### Scenario: TOML fd=true rejected
 - **WHEN** `Robot.from_config(path)` is called with a TOML file containing `[bus.main] fd = true`
-- **THEN** the call raises `dm_control.ConfigError` whose message names "main" and "fd = false"
+- **THEN** the call raises `can_motor_control.ConfigError` whose message names "main" and "fd = false"
 
 ### Requirement: Type stubs accompany the wheel
 
-A `dm_control-stubs` package or in-wheel `.pyi` files SHALL provide static type signatures for the public API matching the surface specified above. Stubs MUST cover at minimum `Robot`, `RobotBuilder`, `Arm`, `Gripper`, `Motor`, `MotorSpec`, `SocketCanBus`, `DmError`, and the `dm_control.damiao` submodule.
+A `can_motor_control-stubs` package or in-wheel `.pyi` files SHALL provide static type signatures for the public API matching the surface specified above. Stubs MUST cover at minimum `Robot`, `RobotBuilder`, `Arm`, `Gripper`, `Motor`, `MotorSpec`, `SocketCanBus`, `DmError`, and the `can_motor_control.damiao` submodule.
 
 #### Scenario: mypy resolves the public API
 - **WHEN** `mypy` is run against a small Python script importing the documented public surface
-- **THEN** mypy reports zero "Cannot find module" or "has no attribute" errors against `dm_control`
+- **THEN** mypy reports zero "Cannot find module" or "has no attribute" errors against `can_motor_control`
 
 ### Requirement: maturin build succeeds on Linux x86_64 stable
 
-The crate `dm-control-py` SHALL build via `maturin build --release` on Linux x86_64 with stable Rust 1.75 or newer, producing a wheel tagged for the appropriate `manylinux` standard. The build MUST NOT require nightly Rust features.
+The crate `can-motor-control-py` SHALL build via `maturin build --release` on Linux x86_64 with stable Rust 1.75 or newer, producing a wheel tagged for the appropriate `manylinux` standard. The build MUST NOT require nightly Rust features.
 
 #### Scenario: CI maturin build green
 - **WHEN** CI runs `maturin build --release` on `ubuntu-latest`

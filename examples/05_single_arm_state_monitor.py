@@ -89,8 +89,8 @@ def main() -> int:
     if args.config is not None and args.motor:
         parser.error("--config and --motor are mutually exclusive")
 
-    import dm_control
-    from dm_control.damiao import DamiaoCodec
+    import can_motor_control
+    from can_motor_control.damiao import DamiaoCodec
 
     if args.config is not None:
         print_assumptions(
@@ -104,7 +104,7 @@ def main() -> int:
             ],
             fd=None,  # wire format governed by the config file
         )
-        robot = dm_control.Robot.from_config(args.config)
+        robot = can_motor_control.Robot.from_config(args.config)
         group_name = args.group_name
     else:
         motor_descs = [
@@ -122,13 +122,13 @@ def main() -> int:
             ],
             fd=args.fd,
         )
-        transport = dm_control.SocketCanBus(args.interface, fd=args.fd)
+        transport = can_motor_control.SocketCanBus(args.interface, fd=args.fd)
         specs = [
-            dm_control.MotorSpec(f"j{i}", resolve_motor_type(t), s, r)
+            can_motor_control.MotorSpec(f"j{i}", resolve_motor_type(t), s, r)
             for i, (s, r, t) in enumerate(args.motor)
         ]
         robot = (
-            dm_control.RobotBuilder()
+            can_motor_control.RobotBuilder()
             .add_bus("main", transport, DamiaoCodec())
             .add_arm("arm", bus="main", motors=specs)
             .build()

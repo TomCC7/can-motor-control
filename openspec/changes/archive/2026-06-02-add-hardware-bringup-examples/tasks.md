@@ -5,7 +5,7 @@
 - [x] 1.1 Impl: define the hardware-example naming/order under `examples/` using numeric prefixes from `00_` through `08_`, and remove or de-emphasize any mock-first example naming that suggests mock execution validates hardware.
 - [x] 1.2 Test: verify the top-level example list is ordered from no-frame checks to calibration and that no mock example appears before hardware bring-up examples.
 - [x] 1.3 Impl: add small shared Python conventions inline or in a local helper only if needed: argument parsing for `--interface`, `--send-id`, `--recv-id`, `--motor-type`, `--seconds`, `--deadline-us`, and clear printed assumptions before commands are sent.
-- [x] 1.4 Test: syntax-check all Python examples with `python -m py_compile` or equivalent without requiring `dm_control` to open hardware.
+- [x] 1.4 Test: syntax-check all Python examples with `python -m py_compile` or equivalent without requiring `can_motor_control` to open hardware.
 
 ## 2. Tier 0: interface / environment check
 
@@ -59,13 +59,13 @@
 
 ## 9. Rust scoped bring-up examples
 
-- [x] 9.1 Impl: add `crates/dm-control/examples/can_interface_check.rs` mirroring Python tier 0, checking `/sys/class/net/<iface>`, printing classical-CAN assumptions, and sending no CAN frames.
+- [x] 9.1 Impl: add `crates/can-motor-control/examples/can_interface_check.rs` mirroring Python tier 0, checking `/sys/class/net/<iface>`, printing classical-CAN assumptions, and sending no CAN frames.
 - [x] 9.2 Test: run the Rust interface check help/missing-interface path and verify it exits with a clear diagnostic before opening a socket.
-- [x] 9.3 Impl: add `crates/dm-control/examples/single_motor_enable_disable.rs` mirroring Python tier 1, building one motor from explicit IDs, connecting, enabling, bounded ticking, disabling, and printing assumptions before acting.
+- [x] 9.3 Impl: add `crates/can-motor-control/examples/single_motor_enable_disable.rs` mirroring Python tier 1, building one motor from explicit IDs, connecting, enabling, bounded ticking, disabling, and printing assumptions before acting.
 - [x] 9.4 Test: build/check the Rust examples and run the single-motor example help path without touching hardware.
-- [x] 9.5 Impl: add `crates/dm-control/examples/single_motor_mit_hold.rs` mirroring Python tier 2, with conservative MIT defaults, bounded runtime, and disable-on-exit behavior.
+- [x] 9.5 Impl: add `crates/can-motor-control/examples/single_motor_mit_hold.rs` mirroring Python tier 2, with conservative MIT defaults, bounded runtime, and disable-on-exit behavior.
 - [x] 9.6 Test: build/check the Rust MIT hold example and run help/bad-input paths without touching hardware.
-- [x] 9.7 Impl: add `crates/dm-control/examples/gripper_control.rs` mirroring Python tier 3, using only current Rust gripper `enable`, `disable`, `mit_control`, and `pos_vel_control` operations.
+- [x] 9.7 Impl: add `crates/can-motor-control/examples/gripper_control.rs` mirroring Python tier 3, using only current Rust gripper `enable`, `disable`, `mit_control`, and `pos_vel_control` operations.
 - [x] 9.8 Test: build/check the Rust gripper example and run help/bad-input paths without touching hardware.
-- [x] 9.9 Impl: add Rust gripper PosForce support and `crates/dm-control/examples/gripper_posforce.rs`, following only openarm_can's fixed `π/2 → 0 → π/2 → 0` sequence with speed/current defaults.
+- [x] 9.9 Impl: add Rust gripper PosForce support and `crates/can-motor-control/examples/gripper_posforce.rs`, following only openarm_can's fixed `π/2 → 0 → π/2 → 0` sequence with speed/current defaults.
 - [x] 9.10 Test: build/check the Rust gripper PosForce example and run help/bad-input paths without touching hardware.

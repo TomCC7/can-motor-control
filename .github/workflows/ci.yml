@@ -42,7 +42,7 @@ jobs:
       - run: cargo test --workspace
 
   no_std:
-    name: motor-codec / dm-codec no_std build
+    name: motor-codec / damiao-codec no_std build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -51,19 +51,19 @@ jobs:
           targets: thumbv7em-none-eabihf
       - uses: Swatinem/rust-cache@v2
       - run: cargo build -p motor-codec --no-default-features --target thumbv7em-none-eabihf
-      - run: cargo build -p dm-codec --no-default-features --target thumbv7em-none-eabihf
+      - run: cargo build -p damiao-codec --no-default-features --target thumbv7em-none-eabihf
 
   vendor_isolation:
-    name: dm-control has no vendor dep
+    name: can-motor-control has no vendor dep
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Confirm no vendor codec in dm-control runtime tree
+      - name: Confirm no vendor codec in can-motor-control runtime tree
         run: |
-          if cargo tree -p dm-control --edges normal | grep -E '\bdm-codec\b|\brobostride\b|\bmyactuator\b'; then
-            echo "::error::vendor codec leaked into dm-control runtime dependencies"
+          if cargo tree -p can-motor-control --edges normal | grep -E '\bdamiao-codec\b|\brobostride\b|\bmyactuator\b'; then
+            echo "::error::vendor codec leaked into can-motor-control runtime dependencies"
             exit 1
           fi
 
@@ -81,19 +81,19 @@ jobs:
           python -m pip install --upgrade pip
           pip install maturin numpy pytest
       - name: Build wheel
-        working-directory: crates/dm-control-py
+        working-directory: crates/can-motor-control-py
         run: maturin build --release --strip
       - name: Upload wheel
         uses: actions/upload-artifact@v4
         with:
-          name: dm_control-wheel
+          name: can_motor_control-wheel
           path: target/wheels/*.whl
       - name: Install wheel into a clean venv with only numpy
         run: |
           python -m venv /tmp/venv
           /tmp/venv/bin/pip install numpy
           /tmp/venv/bin/pip install target/wheels/*.whl
-          /tmp/venv/bin/python -c "import dm_control; print(dm_control.__name__)"
+          /tmp/venv/bin/python -c "import can_motor_control; print(can_motor_control.__name__)"
 
   pytest:
     name: Python smoke tests
@@ -109,6 +109,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install maturin numpy pytest
-          cd crates/dm-control-py && maturin develop --release
+          cd crates/can-motor-control-py && maturin develop --release
       - name: Run pytest
         run: pytest tests/python -v

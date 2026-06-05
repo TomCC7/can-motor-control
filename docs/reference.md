@@ -1,6 +1,6 @@
 # Python API
 
-The reference below is generated from the installed `dm_control` package by
+The reference below is generated from the installed `can_motor_control` package by
 [mkdocstrings](https://mkdocstrings.github.io/). The prose comes from the
 docstrings authored in the Rust PyO3 source, so it matches exactly what
 `help()` and Jupyter `?` show.
@@ -12,46 +12,46 @@ docstrings authored in the Rust PyO3 source, so it matches exactly what
 
 ## Robot and builder
 
-::: dm_control.Robot
+::: can_motor_control.Robot
 
-::: dm_control.RobotBuilder
+::: can_motor_control.RobotBuilder
 
 ## Groups
 
-::: dm_control.Arm
+::: can_motor_control.Arm
 
-::: dm_control.Gripper
+::: can_motor_control.Gripper
 
-::: dm_control.MotorGroup
+::: can_motor_control.MotorGroup
 
-::: dm_control.Motor
+::: can_motor_control.Motor
 
 ## Specs and frames
 
-::: dm_control.MotorSpec
+::: can_motor_control.MotorSpec
 
-::: dm_control.CanFrame
+::: can_motor_control.CanFrame
 
 ## Transports
 
-::: dm_control.MockCanBus
+::: can_motor_control.MockCanBus
 
-::: dm_control.SocketCanBus
+::: can_motor_control.SocketCanBus
 
 ## Damiao codec
 
-::: dm_control.damiao.DamiaoCodec
+::: can_motor_control.damiao.DamiaoCodec
 
-::: dm_control.damiao.MotorType
+::: can_motor_control.damiao.MotorType
 
 ## Errors
 
-::: dm_control.DmError
+::: can_motor_control.DmError
 
-::: dm_control.TransportError
+::: can_motor_control.TransportError
 
-::: dm_control.CodecError
+::: can_motor_control.CodecError
 
-::: dm_control.ConfigError
+::: can_motor_control.ConfigError
 
-::: dm_control.LifecycleError
+::: can_motor_control.LifecycleError

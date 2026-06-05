@@ -74,9 +74,9 @@ def main() -> int:
         fd=None,  # wire format governed by the config file
     )
 
-    import dm_control
+    import can_motor_control
 
-    robot = dm_control.Robot.from_config(args.config)
+    robot = can_motor_control.Robot.from_config(args.config)
     print("connecting...")
     robot.connect()
     try:

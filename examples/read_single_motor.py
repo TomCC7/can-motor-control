@@ -46,29 +46,29 @@ def parse_can_id(text: str) -> int:
 
 def build_robot(args: argparse.Namespace):
     # Lazy import so ``--help`` works even if the native wheel is missing.
-    import dm_control
-    from dm_control.damiao import DamiaoCodec, MotorType
+    import can_motor_control
+    from can_motor_control.damiao import DamiaoCodec, MotorType
 
     if args.mock:
         transport = (
-            dm_control.MockCanBus.new_fd("vcan_mock")
+            can_motor_control.MockCanBus.new_fd("vcan_mock")
             if args.fd
-            else dm_control.MockCanBus("vcan_mock")
+            else can_motor_control.MockCanBus("vcan_mock")
         )
     else:
-        transport = dm_control.SocketCanBus(args.interface, fd=args.fd)
+        transport = can_motor_control.SocketCanBus(args.interface, fd=args.fd)
 
     motor_type = getattr(MotorType, args.motor_type, None)
     if motor_type is None:
         raise SystemExit(f"unknown --motor-type {args.motor_type!r} (e.g. DM4310, DM4340)")
 
     return (
-        dm_control.RobotBuilder()
+        can_motor_control.RobotBuilder()
         .add_bus("main", transport, DamiaoCodec())
         .add_arm(
             "arm",
             bus="main",
-            motors=[dm_control.MotorSpec("j0", motor_type, args.send_id, args.recv_id)],
+            motors=[can_motor_control.MotorSpec("j0", motor_type, args.send_id, args.recv_id)],
         )
         .build()
     )
@@ -111,7 +111,7 @@ def render(meta: dict, motor, ticks: int, elapsed: float, rate: float):
 
     return Panel(
         Group(head, state, footer),
-        title="dm_control · single-motor reader",
+        title="can_motor_control · single-motor reader",
         border_style="cyan",
         padding=(1, 2),
     )

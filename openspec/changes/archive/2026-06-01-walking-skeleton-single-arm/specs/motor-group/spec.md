@@ -148,7 +148,7 @@ For each motor in insertion order, `Arm` SHALL invoke `bus.codec.encode_command`
 
 ### Requirement: Apply-event-to-motor is the dispatch entry point on groups
 
-The `MotorGroup` SHALL provide an `apply_event(&mut self, motor_index: usize, event: Event)` method (crate-private to `dm-control`). It MUST update the motor at the supplied index according to the event variant. Decoding the inbound frame and resolving the correct group + motor_index is the bus router's responsibility (see `robot-composition` spec, "Connect builds per-bus recv_id routing table"); the group MUST NOT itself call `decode`.
+The `MotorGroup` SHALL provide an `apply_event(&mut self, motor_index: usize, event: Event)` method (crate-private to `can-motor-control`). It MUST update the motor at the supplied index according to the event variant. Decoding the inbound frame and resolving the correct group + motor_index is the bus router's responsibility (see `robot-composition` spec, "Connect builds per-bus recv_id routing table"); the group MUST NOT itself call `decode`.
 
 #### Scenario: apply_event updates the targeted motor
 

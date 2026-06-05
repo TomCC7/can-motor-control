@@ -2,9 +2,9 @@
 resolver = "2"
 members = [
     "crates/motor-codec",
-    "crates/dm-codec",
-    "crates/dm-control",
-    "crates/dm-control-py",
+    "crates/damiao-codec",
+    "crates/can-motor-control",
+    "crates/can-motor-control-py",
 ]
 
 [workspace.package]
@@ -12,7 +12,7 @@ version = "0.1.0"
 edition = "2021"
 rust-version = "1.85"
 license = "Apache-2.0 OR MIT"
-repository = "https://github.com/cc/dm_control_rs"
+repository = "https://github.com/cc/can-motor-control"
 
 [workspace.dependencies]
 thiserror = { version = "2.0", default-features = false }
@@ -26,8 +26,8 @@ numpy = "0.22"
 log = "0.4"
 
 motor-codec = { path = "crates/motor-codec", version = "0.1.0", default-features = false }
-dm-codec = { path = "crates/dm-codec", version = "0.1.0", default-features = false }
-dm-control = { path = "crates/dm-control", version = "0.1.0" }
+damiao-codec = { path = "crates/damiao-codec", version = "0.1.0", default-features = false }
+can-motor-control = { path = "crates/can-motor-control", version = "0.1.0" }
 
 [profile.release]
 lto = "thin"

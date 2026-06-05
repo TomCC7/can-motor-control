@@ -1,4 +1,4 @@
-# dm_control_rs
+# can-motor-control
 
 Rust control library for Damiao-family CAN motors, with first-class Python bindings.
 
@@ -14,12 +14,12 @@ The two reference implementations — `cmjang/DM_Control_Python` and `enactic/op
 
 ```bash
 # Python (once 0.1.0 is published):
-pip install dm_control
+pip install can-motor-control
 
 # Rust:
 [dependencies]
-dm-control = "0.1"
-dm-codec   = "0.1"   # Damiao codec; add other vendor codec crates as needed
+can-motor-control = "0.1"
+damiao-codec   = "0.1"   # Damiao codec; add other vendor codec crates as needed
 ```
 
 Build from source:
@@ -29,9 +29,9 @@ Build from source:
 cargo build --workspace --release
 
 # Python wheel
-cd crates/dm-control-py
+cd crates/can-motor-control-py
 maturin build --release
-pip install target/wheels/dm_control-*.whl
+pip install target/wheels/can_motor_control-*.whl
 ```
 
 ## Layout
@@ -39,9 +39,9 @@ pip install target/wheels/dm_control-*.whl
 ```
 crates/
   motor-codec/      # no_std, vendor-agnostic MotorCodec trait + shared types
-  dm-codec/         # no_std, Damiao implementation of MotorCodec
-  dm-control/       # std, transport (SocketCAN) + Robot/Group/Motor + builder
-  dm-control-py/    # PyO3 bindings, built by maturin
+  damiao-codec/         # no_std, Damiao implementation of MotorCodec
+  can-motor-control/       # std, transport (SocketCAN) + Robot/Group/Motor + builder
+  can-motor-control-py/    # PyO3 bindings, built by maturin
 configs/            # example TOML robot configs
 examples/           # Python hardware bring-up ladder (00_-08_) + Rust example
 tests/python/       # Python smoke + integration tests
@@ -94,7 +94,7 @@ make docs
 make docs-build
 ```
 
-Both targets run `uv sync --reinstall-package dm_control` first, which builds
+Both targets run `uv sync --reinstall-package can-motor-control` first, which builds
 the extension (editable, via maturin) and installs the locked docs toolchain,
 then invoke MkDocs. No separate virtualenv or `pip install` step is needed —
 uv provisions everything from `uv.lock`. The same two-step flow ports directly

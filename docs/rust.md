@@ -13,9 +13,9 @@ This opens the reference for each crate:
 | Crate | Role |
 | ----- | ---- |
 | `motor-codec` | `no_std`, vendor-agnostic `MotorCodec` trait + shared types |
-| `dm-codec`    | `no_std`, Damiao implementation of `MotorCodec` |
-| `dm-control`  | `std`, SocketCAN transport + `Robot` / group / motor + builder |
+| `damiao-codec`    | `no_std`, Damiao implementation of `MotorCodec` |
+| `can-motor-control`  | `std`, SocketCAN transport + `Robot` / group / motor + builder |
 
 The Python package documented under [Python API](reference.md) is a thin PyO3
-binding over `dm-control`; the Rust docs are the place to understand the
+binding over `can-motor-control`; the Rust docs are the place to understand the
 underlying types and the vendor-agnostic codec seam.

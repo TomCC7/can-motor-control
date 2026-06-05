@@ -1,4 +1,4 @@
-//! The [`MotorCodec`] trait — the seam between `dm-control` and vendor-specific
+//! The [`MotorCodec`] trait — the seam between `can-motor-control` and vendor-specific
 //! motor protocols.
 
 use thiserror::Error;
@@ -10,7 +10,7 @@ use crate::{
 /// The vendor-agnostic codec contract.
 ///
 /// Every vendor codec (Damiao, Robostride, MyActuator, ...) implements this
-/// trait. `dm-control` uses `Box<dyn MotorCodec>` exclusively — it never
+/// trait. `can-motor-control` uses `Box<dyn MotorCodec>` exclusively — it never
 /// depends on a specific vendor's crate.
 ///
 /// The trait is intentionally object-safe (no generics, no `Self: Sized`
@@ -190,7 +190,10 @@ mod tests {
             recv_id: 0x11,
             name: "j",
         };
-        assert!(matches!(Dummy.encode_set_mode(m, CommandKind::Mit), Ok(None)));
+        assert!(matches!(
+            Dummy.encode_set_mode(m, CommandKind::Mit),
+            Ok(None)
+        ));
     }
 
     #[test]

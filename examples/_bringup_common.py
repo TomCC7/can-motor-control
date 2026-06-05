@@ -140,11 +140,11 @@ def validate_seconds(args: argparse.Namespace, *, max_seconds: float = 30.0) -> 
 
 
 def resolve_motor_type(name: str):
-    """Return a `dm_control.damiao.MotorType` member from a string.
+    """Return a `can_motor_control.damiao.MotorType` member from a string.
 
     Imported lazily so `--help` works even if the native wheel is missing.
     """
-    from dm_control.damiao import MotorType  # noqa: WPS433 (lazy by design)
+    from can_motor_control.damiao import MotorType  # noqa: WPS433 (lazy by design)
 
     try:
         return MotorType[name]

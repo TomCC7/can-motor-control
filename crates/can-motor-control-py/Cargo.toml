@@ -1,0 +1,23 @@
+[package]
+name = "can-motor-control-py"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "PyO3 bindings for can-motor-control: Python interface to the Damiao motor control library"
+
+[lib]
+name = "can_motor_control"
+crate-type = ["cdylib"]
+# The lib name collides with `can-motor-control`'s; exclude this binding crate from
+# `cargo doc` so the Rust API docs come from the source-of-truth crate.
+doc = false
+
+[dependencies]
+can-motor-control = { workspace = true }
+damiao-codec = { workspace = true, features = ["std"] }
+motor-codec = { workspace = true, features = ["std"] }
+pyo3 = { workspace = true }
+numpy = { workspace = true }
+log = { workspace = true }

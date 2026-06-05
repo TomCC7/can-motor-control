@@ -1,9 +1,9 @@
-# dm_control
+# can_motor_control
 
 Rust control library for Damiao-family CAN motors, with first-class Python
 bindings.
 
-The Python package `dm_control` is a thin [PyO3](https://pyo3.rs) layer over a
+The Python package `can_motor_control` is a thin [PyO3](https://pyo3.rs) layer over a
 Rust core, so it installs as a single wheel and runs in realtime control loops
 without GIL contention.
 
@@ -13,14 +13,14 @@ without GIL contention.
   for the first time.
 - **[CAN-FD](can-fd.md)** — notes on classical CAN vs CAN-FD.
 - **[Multi-vendor](multi-vendor.md)** — how the vendor-agnostic codec seam works.
-- **[Python API](reference.md)** — the full `dm_control` reference.
+- **[Python API](reference.md)** — the full `can_motor_control` reference.
 - **[Rust API](rust.md)** — pointer to the rustdoc for the Rust crates.
 
 ## Quick taste
 
 ```python
 import numpy as np
-from dm_control import Robot
+from can_motor_control import Robot
 
 # Connect + enable on entry, disable on exit.
 with Robot.from_config("configs/single_arm.toml") as robot:

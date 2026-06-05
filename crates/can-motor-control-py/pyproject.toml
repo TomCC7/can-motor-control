@@ -1,0 +1,30 @@
+[build-system]
+requires = ["maturin>=1.5,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "can-motor-control"
+description = "Rust-backed control library for Damiao-family CAN motors"
+requires-python = ">=3.10"
+classifiers = [
+  "Programming Language :: Rust",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Operating System :: POSIX :: Linux",
+  "License :: OSI Approved :: Apache Software License",
+  "License :: OSI Approved :: MIT License",
+]
+dependencies = ["numpy>=1.24"]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+# Documentation toolchain. Dev-only: never pulled in by a plain
+# `pip install can-motor-control`, only by `pip install '.[docs]'`.
+docs = [
+  "mkdocs-material>=9.5",
+  "mkdocstrings[python]>=0.26",
+]
+
+[tool.maturin]
+features = ["pyo3/extension-module"]
+module-name = "can_motor_control._native"
+python-source = "python"
