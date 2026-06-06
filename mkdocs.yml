@@ -67,5 +67,6 @@ nav:
       - SocketCAN setup: socketcan-setup.md
       - CAN-FD: can-fd.md
       - Multi-vendor: multi-vendor.md
+      - Release: release.md
   - Python API: reference.md
   - Rust API: rust.md

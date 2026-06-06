@@ -21,10 +21,10 @@ pub type MotorTypeParser = Box<dyn Fn(&str) -> Option<MotorTypeId> + Send + Sync
 /// Registry of vendor name → (codec factory, type parser).
 ///
 /// `can-motor-control` ships empty by default — populating "damiao" lives in
-/// `damiao-codec` (or in a higher-level binding crate). The Python binding
-/// (`can-motor-control-py`) registers damiao automatically; Rust users either build
-/// a registry themselves or use the helper exposed by their vendor codec
-/// crate.
+/// the `can-motor-damiao-codec` package (or in a higher-level binding crate).
+/// The Python binding (`can-motor-control-py`) registers damiao automatically;
+/// Rust users either build a registry themselves or use the helper exposed by
+/// their vendor codec crate.
 pub struct CodecRegistry {
     factories: HashMap<String, (CodecFactory, MotorTypeParser)>,
 }

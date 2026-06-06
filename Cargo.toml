@@ -25,8 +25,8 @@ pyo3 = { version = "0.22", features = ["extension-module", "abi3-py310"] }
 numpy = "0.22"
 log = "0.4"
 
-motor-codec = { path = "crates/motor-codec", version = "0.1.0", default-features = false }
-damiao-codec = { path = "crates/damiao-codec", version = "0.1.0", default-features = false }
+motor-codec = { path = "crates/motor-codec", package = "can-motor-codec", version = "0.1.0", default-features = false }
+damiao-codec = { path = "crates/damiao-codec", package = "can-motor-damiao-codec", version = "0.1.0", default-features = false }
 can-motor-control = { path = "crates/can-motor-control", version = "0.1.0" }
 
 [profile.release]

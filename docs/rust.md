@@ -10,11 +10,11 @@ cargo doc --no-deps --workspace --open
 
 This opens the reference for each crate:
 
-| Crate | Role |
-| ----- | ---- |
-| `motor-codec` | `no_std`, vendor-agnostic `MotorCodec` trait + shared types |
-| `damiao-codec`    | `no_std`, Damiao implementation of `MotorCodec` |
-| `can-motor-control`  | `std`, SocketCAN transport + `Robot` / group / motor + builder |
+| crates.io package | Rust import crate | Role |
+| ----- | ----- | ---- |
+| `can-motor-codec` | `motor_codec` | `no_std`, vendor-agnostic `MotorCodec` trait + shared types |
+| `can-motor-damiao-codec` | `damiao_codec` | `no_std`, Damiao implementation of `MotorCodec` |
+| `can-motor-control` | `can_motor_control` | `std`, SocketCAN transport + `Robot` / group / motor + builder |
 
 The Python package documented under [Python API](reference.md) is a thin PyO3
 binding over `can-motor-control`; the Rust docs are the place to understand the

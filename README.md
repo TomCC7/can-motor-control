@@ -19,8 +19,12 @@ pip install can-motor-control
 # Rust:
 [dependencies]
 can-motor-control = "0.1"
-damiao-codec   = "0.1"   # Damiao codec; add other vendor codec crates as needed
+damiao-codec = { package = "can-motor-damiao-codec", version = "0.1" }
 ```
+
+The published companion package names are prefixed (`can-motor-codec`,
+`can-motor-damiao-codec`) to stay scoped to this project. Their Rust import
+crate names remain `motor_codec` and `damiao_codec`.
 
 Build from source:
 
@@ -38,8 +42,8 @@ pip install target/wheels/can_motor_control-*.whl
 
 ```
 crates/
-  motor-codec/      # no_std, vendor-agnostic MotorCodec trait + shared types
-  damiao-codec/         # no_std, Damiao implementation of MotorCodec
+  motor-codec/          # no_std, package can-motor-codec, import motor_codec
+  damiao-codec/         # no_std, package can-motor-damiao-codec, import damiao_codec
   can-motor-control/       # std, transport (SocketCAN) + Robot/Group/Motor + builder
   can-motor-control-py/    # PyO3 bindings, built by maturin
 configs/            # example TOML robot configs
@@ -99,6 +103,13 @@ to CI later (`uv sync --frozen` + `uv run mkdocs build`).
 
 The Rust crates are documented separately with rustdoc:
 `cargo doc --no-deps --workspace --open`.
+
+## Releasing
+
+Maintainers should follow the release runbook in
+[`docs/release.md`](./docs/release.md) before publishing to PyPI or crates.io.
+It covers registry setup, release-candidate dry-runs, crates.io publish order,
+PyPI Trusted Publishing, and post-publish install checks.
 
 ## Source of truth
 
