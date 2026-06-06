@@ -86,11 +86,12 @@ Run Rust examples with `cargo run -p can-motor-control --example <Rust example> 
 Hosted documentation is published from `main` to
 <https://tomcc7.github.io/can-motor-control/> by the GitHub Pages workflow.
 
-A local docs site (Python API reference + the guides under `docs/`) is built
-with MkDocs. The Python API prose is generated from the package's docstrings,
-so the native extension is built first. The environment is managed by
-[uv](https://docs.astral.sh/uv/) and pinned by `uv.lock` for reproducibility
-(the root `pyproject.toml` is a dev-only environment, not a published package).
+A local docs site (Python API reference, guides, and hosted Rust rustdoc) is
+built with MkDocs plus `cargo doc`. The Python API prose is generated from the
+package's docstrings, so the native extension is built first. The environment
+is managed by [uv](https://docs.astral.sh/uv/) and pinned by `uv.lock` for
+reproducibility (the root `pyproject.toml` is a dev-only environment, not a
+published package).
 
 ```bash
 # Serve with live reload at http://127.0.0.1:8000
@@ -100,14 +101,10 @@ make docs
 make docs-build
 ```
 
-Both targets run `uv sync --reinstall-package can-motor-control` first, which builds
-the extension (editable, via maturin) and installs the locked docs toolchain,
-then invoke MkDocs. No separate virtualenv or `pip install` step is needed —
-uv provisions everything from `uv.lock`. The same two-step flow ports directly
-to CI later (`uv sync --frozen` + `uv run mkdocs build`).
-
-The Rust crates are documented separately with rustdoc:
-`cargo doc --no-deps --workspace --open`.
+`make docs-build` runs `scripts/build-docs.sh`, which provisions the uv
+environment, builds the MkDocs site, runs `cargo doc --no-deps --workspace --locked`,
+and copies rustdoc into `site/rustdoc/` for deployment. No separate virtualenv
+or `pip install` step is needed — uv provisions everything from `uv.lock`.
 
 ## Releasing
 

@@ -19,9 +19,9 @@ docs-sync:
 docs: docs-sync
 	uv run --with mkdocs --with mkdocs-material --with 'mkdocstrings[python]' -- python -m mkdocs serve --dev-addr $(ADDR)
 
-# Render a static site into ./site
-docs-build: docs-sync
-	uv run --with mkdocs --with mkdocs-material --with 'mkdocstrings[python]' -- python -m mkdocs build --site-dir site
+# Render a static site into ./site, including hosted rustdoc under ./site/rustdoc
+docs-build:
+	bash scripts/build-docs.sh
 
 # Host the already-built ./site locally with a plain static server. Builds
 # first if needed. Nothing is pushed anywhere.

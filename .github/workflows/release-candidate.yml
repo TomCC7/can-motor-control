@@ -120,6 +120,4 @@ jobs:
           python -m pip install --upgrade pip
           pip install uv
       - name: Build docs
-        run: |
-          uv sync --frozen --reinstall-package can-motor-control
-          uv run --with mkdocs --with mkdocs-material --with 'mkdocstrings[python]' -- python -m mkdocs build --site-dir site
+        run: bash scripts/build-docs.sh --frozen

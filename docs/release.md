@@ -101,8 +101,8 @@ The workflow does not receive registry credentials. It runs:
 - staged downstream validation during the initial release, after upstream crates are public
 - `maturin build --release --strip --locked --compatibility pypi --sdist`
 - clean wheel installation and `pytest tests/python -v`
-- docs build through `uv sync --frozen --reinstall-package can-motor-control`
-  and `uv run ... mkdocs build`
+- docs build through `scripts/build-docs.sh --frozen`, including MkDocs and
+  hosted rustdoc under `site/rustdoc/`
 
 Inspect the uploaded `crate-packages` and `python-distributions` artifacts
 before publishing. During the very first crates.io run, `crate-packages` only

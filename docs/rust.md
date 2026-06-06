@@ -1,14 +1,22 @@
 # Rust API
 
-The Rust crates are documented with **rustdoc**. There is no hosted copy yet
-(the repository is private), so generate and open the docs locally:
+The Rust crates are documented with **rustdoc** and deployed alongside this
+MkDocs site:
+
+<ul>
+  <li><a href="../rustdoc/index.html">Rust workspace rustdoc</a></li>
+  <li><a href="../rustdoc/can_motor_control/index.html"><code>can_motor_control</code></a></li>
+  <li><a href="../rustdoc/damiao_codec/index.html"><code>damiao_codec</code></a></li>
+  <li><a href="../rustdoc/motor_codec/index.html"><code>motor_codec</code></a></li>
+</ul>
+
+Generate the same docs locally with:
 
 ```bash
-# Build and open the rustdoc for the whole workspace.
-cargo doc --no-deps --workspace --open
+make docs-build
 ```
 
-This opens the reference for each crate:
+The hosted rustdoc contains the reference for each crate:
 
 | crates.io package | Rust import crate | Role |
 | ----- | ----- | ---- |
