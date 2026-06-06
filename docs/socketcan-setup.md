@@ -1,11 +1,11 @@
 # SocketCAN setup for `can_motor_control` hardware examples
 
-`can_motor_control` v1 talks to Damiao motors over **classical CAN only** on
-Linux SocketCAN. CAN-FD is intentionally not supported in v1; the bus
-rejects `fd=true` (see [`docs/can-fd.md`](./can-fd.md)).
+`can_motor_control` talks to Damiao motors over Linux SocketCAN. Classical CAN
+is the default; pass `--fd` to examples that should open a CAN-FD bus (see
+[`docs/can-fd.md`](./can-fd.md)).
 
 This document is the minimum operator checklist for the
-`examples/00_*` -> `examples/08_*` ladder.
+`examples/00_*` -> `examples/06_*` ladder.
 
 ## Real CAN interface (e.g. USB or PCIe CAN adapter)
 
@@ -60,7 +60,7 @@ Before running anything in `examples/01_*` or beyond:
   bring-up examples without motors. It exercises the SocketCAN
   syscalls and the codec, but no motor replies arrive.
 * **Real `can0`** is the only configuration that actually validates
-  hardware. Treat the bring-up ladder (`00` -> `08`) as the supported
+  hardware. Treat the bring-up ladder (`00` -> `06`) as the supported
   path; mock examples do not substitute for it.
 
 ## Skipping host-CAN tests

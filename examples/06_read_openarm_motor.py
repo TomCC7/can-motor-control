@@ -1,5 +1,4 @@
-"""Developer-only example: live TUI of the whole OpenArm (single arm). NOT a
-hardware bring-up example.
+"""Tier 3 -- live TUI of the whole OpenArm single-arm setup.
 
 Builds the OpenArm single arm modeled faithfully as two groups on one bus: a
 7-joint **arm** (DM8009, DM8009, DM4340, DM4340, DM4310, DM4310, DM4310) and a
@@ -23,13 +22,13 @@ Runs against MockCanBus (`--mock`, no hardware) or a SocketCAN interface
 (`--interface can0`, optionally `--fd` for a CAN-FD bus). Mock execution proves
 the read path and wiring, NOT that real hardware will respond.
 
-For the supported first-time hardware path, use the bring-up ladder instead:
-`examples/05_single_arm_state_monitor.py`.
+Run on hardware only after each individual motor has passed `01` and `02`, and
+after gripper-only control has been checked with `05_gripper_control.py`.
 
 Usage:
-    python examples/read_openarm_motor.py --mock
-    python examples/read_openarm_motor.py --interface can0
-    python examples/read_openarm_motor.py --interface canfd0 --fd
+    python examples/06_read_openarm_motor.py --mock
+    python examples/06_read_openarm_motor.py --interface can0
+    python examples/06_read_openarm_motor.py --interface canfd0 --fd
 """
 
 from __future__ import annotations

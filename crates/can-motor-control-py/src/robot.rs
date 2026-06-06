@@ -519,6 +519,15 @@ impl PyGripper {
         let r = self.robot.bind(py).borrow();
         with_gripper(&r, &self.name, |g| g.pos_vel_control(cmd))
     }
+    /// Queue a position-force command for the gripper motor.
+    ///
+    /// ``q`` is target position (rad), ``dq`` is target velocity (rad/s), and
+    /// ``i_pu`` is current in per-unit. Sent on the next `Robot.tick`.
+    fn pos_force_control(&self, py: Python<'_>, q: f64, dq: f64, i_pu: f64) -> PyResult<()> {
+        let cmd = PosForceCmd { q, dq, i_pu };
+        let r = self.robot.bind(py).borrow();
+        with_gripper(&r, &self.name, |g| g.pos_force_control(cmd))
+    }
     /// Send a state-refresh query to the gripper motor (commands no motion).
     /// Pair with `Robot.tick` to receive the reply.
     fn refresh(&self, py: Python<'_>) -> PyResult<()> {

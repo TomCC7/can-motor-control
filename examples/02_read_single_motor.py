@@ -1,5 +1,4 @@
-"""Developer-only example: live TUI of one motor's state. NOT a hardware
-bring-up example.
+"""Tier 1 -- live TUI of one motor's state.
 
 Builds a one-motor robot, sets it to MIT control mode, enables it, and commands
 zero torque once (`kp=kd=q=dq=tau=0`) so the motor is compliant / back-drivable.
@@ -15,13 +14,13 @@ Runs against MockCanBus (`--mock`, no hardware) or a SocketCAN interface
 (`--interface can0`, optionally `--fd` for a CAN-FD bus). Mock execution proves
 the read path and wiring, NOT that real hardware will respond.
 
-For the supported first-time hardware path, use the bring-up ladder instead:
-`examples/02_single_motor_read_state.py`.
+Run against hardware only after `01_single_motor_enable_disable.py` succeeds on
+the same motor.
 
 Usage:
-    python examples/read_single_motor.py --mock
-    python examples/read_single_motor.py --interface can0 --send-id 0x01 --recv-id 0x11
-    python examples/read_single_motor.py --interface canfd0 --fd
+    python examples/02_read_single_motor.py --mock
+    python examples/02_read_single_motor.py --interface can0 --send-id 0x01 --recv-id 0x11
+    python examples/02_read_single_motor.py --interface canfd0 --fd
 """
 
 from __future__ import annotations

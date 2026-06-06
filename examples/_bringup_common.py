@@ -1,4 +1,4 @@
-"""Shared conventions for hardware bring-up examples (`00_`-`08_`).
+"""Shared conventions for hardware bring-up examples (`00_`-`06_`).
 
 These helpers exist so every bring-up example uses the same flag names,
 the same defaults, and prints the same assumption block before sending
@@ -28,7 +28,8 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from typing import Iterable
+from collections.abc import Iterable
+from typing import cast
 
 
 # Examples print the wire format before the link comes up so the operator knows
@@ -63,7 +64,7 @@ def parse_can_id(text: str) -> int:
 
 
 def add_interface_arg(parser: argparse.ArgumentParser, *, default: str = "can0") -> None:
-    parser.add_argument(
+    _ = parser.add_argument(
         "--interface",
         default=default,
         help=f"SocketCAN interface name (default: {default})",
@@ -72,7 +73,7 @@ def add_interface_arg(parser: argparse.ArgumentParser, *, default: str = "can0")
 
 def add_fd_arg(parser: argparse.ArgumentParser) -> None:
     """Add `--fd` to open the bus in CAN-FD mode (interface must be FD-capable)."""
-    parser.add_argument(
+    _ = parser.add_argument(
         "--fd",
         action="store_true",
         help="open the bus in CAN-FD mode; the interface must be FD-capable",
@@ -87,19 +88,19 @@ def add_single_motor_args(
     default_motor_type: str = "DM4340",
 ) -> None:
     """Add --send-id, --recv-id, --motor-type. Defaults must be printed before use."""
-    parser.add_argument(
+    _ = parser.add_argument(
         "--send-id",
         type=parse_can_id,
         default=default_send_id,
         help=f"CAN id host->motor (default: 0x{default_send_id:02X})",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--recv-id",
         type=parse_can_id,
         default=default_recv_id,
         help=f"CAN id motor->host (default: 0x{default_recv_id:02X})",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--motor-type",
         default=default_motor_type,
         help=f"Damiao motor model, e.g. DM4310, DM4340 (default: {default_motor_type})",
@@ -113,13 +114,13 @@ def add_bounded_run_args(
     default_deadline_us: int = 500,
 ) -> None:
     """Add --seconds (must be > 0) and --deadline-us."""
-    parser.add_argument(
+    _ = parser.add_argument(
         "--seconds",
         type=float,
         default=default_seconds,
         help=f"bounded duration in seconds, must be > 0 (default: {default_seconds})",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--deadline-us",
         type=int,
         default=default_deadline_us,
@@ -129,28 +130,30 @@ def add_bounded_run_args(
 
 def validate_seconds(args: argparse.Namespace, *, max_seconds: float = 30.0) -> None:
     """Reject 0/negative durations and cap unreasonably long ones for bring-up."""
-    if args.seconds <= 0:
-        raise SystemExit(f"--seconds must be > 0, got {args.seconds}")
-    if args.seconds > max_seconds:
+    seconds = cast(float, args.seconds)
+    if seconds <= 0:
+        raise SystemExit(f"--seconds must be > 0, got {seconds}")
+    if seconds > max_seconds:
         raise SystemExit(
-            f"--seconds={args.seconds} exceeds bring-up cap of {max_seconds}s. "
-            "Bring-up examples intentionally refuse unbounded/long runs. "
-            "Edit the example and raise the cap explicitly if you understand the risk."
+            f"--seconds={seconds} exceeds bring-up cap of {max_seconds}s. "
+            + "Bring-up examples intentionally refuse unbounded/long runs. "
+            + "Edit the example and raise the cap explicitly if you understand the risk."
         )
 
 
-def resolve_motor_type(name: str):
+def resolve_motor_type(name: str) -> int:
     """Return a `can_motor_control.damiao.MotorType` member from a string.
 
     Imported lazily so `--help` works even if the native wheel is missing.
     """
     from can_motor_control.damiao import MotorType  # noqa: WPS433 (lazy by design)
 
-    try:
-        return MotorType[name]
-    except KeyError as exc:  # pragma: no cover - argparse usually catches first
-        valid = ", ".join(m.name for m in MotorType)
-        raise SystemExit(f"unknown --motor-type {name!r}; valid: {valid}") from exc
+    motor_type = getattr(MotorType, name, None)
+    if motor_type is not None:
+        return cast(int, motor_type)
+
+    valid = ", ".join(n for n in dir(MotorType) if n.startswith("DM"))
+    raise SystemExit(f"unknown --motor-type {name!r}; valid: {valid}")
 
 
 def interface_exists(interface: str) -> bool:
@@ -178,4 +181,4 @@ def print_assumptions(
         for line in wire_format_lines(fd):
             print(f"  {line}")
     print("=" * (len(title) + 8))
-    sys.stdout.flush()
+    _ = sys.stdout.flush()

@@ -4,7 +4,7 @@ Run a bounded MIT control loop on a single motor with low default gains
 and zero setpoint. The motor should hold its current position softly. The
 duration is hard-capped so a forgotten loop cannot run indefinitely.
 
-Run only after `02_single_motor_read_state.py` shows sane position /
+Run only after `02_read_single_motor.py` shows sane position /
 velocity / temperature for this motor.
 
 Defaults are intentionally conservative:

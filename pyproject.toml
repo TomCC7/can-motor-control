@@ -11,7 +11,7 @@ dependencies = [
     # The extension plus its `docs` extra (mkdocs-material, mkdocstrings) — the
     # crate's pyproject.toml is the single source of truth for the tool list.
     "can-motor-control[docs]",
-    # Used by examples/read_single_motor.py for the live TUI.
+    # Used by examples/02_read_single_motor.py and 06_read_openarm_motor.py for live TUIs.
     "rich>=13",
 ]
 
