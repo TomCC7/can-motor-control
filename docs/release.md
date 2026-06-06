@@ -29,9 +29,12 @@ Before the first release:
    job.
 3. Configure a protected GitHub environment named `crates-io` for the Rust
    publish job.
-4. On PyPI, configure Trusted Publishing for the repository, workflow file
+4. Configure GitHub Pages with source set to GitHub Actions. Documentation is
+   deployed by `.github/workflows/pages.yml` to the `github-pages` environment
+   after pushes to `main` and manual dispatches.
+5. On PyPI, configure Trusted Publishing for the repository, workflow file
    `.github/workflows/release.yml`, and environment `pypi`.
-5. On crates.io, configure Trusted Publishing for each crate after that crate
+6. On crates.io, configure Trusted Publishing for each crate after that crate
    has been published once. crates.io requires the crate to exist before a
    trusted publisher can be added.
 

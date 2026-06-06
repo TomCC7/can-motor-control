@@ -1,6 +1,7 @@
 site_name: can-motor-control
 site_description: Rust-backed control library for Damiao-family CAN motors
-repo_url: https://github.com/cc/can-motor-control
+site_url: https://tomcc7.github.io/can-motor-control/
+repo_url: https://github.com/TomCC7/can-motor-control
 docs_dir: docs
 
 theme:

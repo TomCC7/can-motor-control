@@ -16,15 +16,17 @@ The two reference implementations — `cmjang/DM_Control_Python` and `enactic/op
 # Python (once 0.1.0 is published):
 pip install can-motor-control
 
-# Rust:
+# Rust from GitHub while crates.io publishing is deferred:
 [dependencies]
-can-motor-control = "0.1"
-damiao-codec = { package = "can-motor-damiao-codec", version = "0.1" }
+can-motor-control = { git = "https://github.com/TomCC7/can-motor-control", tag = "v0.0.1" }
+damiao-codec = { git = "https://github.com/TomCC7/can-motor-control", package = "can-motor-damiao-codec", tag = "v0.0.1" }
 ```
 
-The published companion package names are prefixed (`can-motor-codec`,
-`can-motor-damiao-codec`) to stay scoped to this project. Their Rust import
-crate names remain `motor_codec` and `damiao_codec`.
+Rust users can depend on the public GitHub repository directly while crates.io
+publication is deferred. Pin a tag or commit for reproducible builds. The
+companion package names are prefixed (`can-motor-codec`,
+`can-motor-damiao-codec`) for a future crates.io release, while their Rust
+import crate names remain `motor_codec` and `damiao_codec`.
 
 Build from source:
 
@@ -80,6 +82,9 @@ For first-time setup of a Linux SocketCAN interface, see
 Run Rust examples with `cargo run -p can-motor-control --example <Rust example> -- ...`.
 
 ## Documentation
+
+Hosted documentation is published from `main` to
+<https://tomcc7.github.io/can-motor-control/> by the GitHub Pages workflow.
 
 A local docs site (Python API reference + the guides under `docs/`) is built
 with MkDocs. The Python API prose is generated from the package's docstrings,
