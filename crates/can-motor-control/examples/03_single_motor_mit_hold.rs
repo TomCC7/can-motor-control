@@ -1,14 +1,14 @@
 //! Tier 2 Rust bring-up: conservative MIT hold on one Damiao motor.
 //!
-//! Run only after `single_motor_enable_disable.rs` shows sane state replies for
+//! Run only after `01_single_motor_enable_disable.rs` shows sane state replies for
 //! the same motor. This example sends bounded MIT control commands with soft
 //! default gains and disables on exit.
 //!
 //! Usage:
 //!
 //! ```bash
-//! cargo run -p can-motor-control --example single_motor_mit_hold -- \
-//!   --interface can0 --send-id 0x08 --recv-id 0x18 --motor-type DM4310
+//! cargo run -p can-motor-control --example 03_single_motor_mit_hold -- \
+//!   --interface can0 --send-id 0x01 --recv-id 0x11 --motor-type DM4340
 //! ```
 
 use std::env;
@@ -21,9 +21,9 @@ use can_motor_control::{CanBus, MitCmd, MotorCodec, MotorSpec, RobotBuilder, Soc
 use damiao_codec::{parse_motor_type, DamiaoCodec};
 
 const DEFAULT_INTERFACE: &str = "can0";
-const DEFAULT_SEND_ID: u32 = 0x08;
-const DEFAULT_RECV_ID: u32 = 0x18;
-const DEFAULT_MOTOR_TYPE: &str = "DM4310";
+const DEFAULT_SEND_ID: u32 = 0x01;
+const DEFAULT_RECV_ID: u32 = 0x11;
+const DEFAULT_MOTOR_TYPE: &str = "DM4340";
 const DEFAULT_SECONDS: f64 = 2.0;
 const DEFAULT_DEADLINE_US: u64 = 500;
 
@@ -47,14 +47,14 @@ fn print_help() {
         "Tier 2 Rust bring-up: conservative MIT hold on one motor.\n\
 \n\
 Usage:\n\
-  cargo run -p can-motor-control --example single_motor_mit_hold -- [options]\n\
+  cargo run -p can-motor-control --example 03_single_motor_mit_hold -- [options]\n\
 \n\
 Options:\n\
   --interface <iface>    SocketCAN interface name (default: can0)\n\
   --fd                   Open the bus in CAN-FD mode (interface must be FD-capable)\n\
-  --send-id <id>         CAN id host->motor, hex or decimal (default: 0x08)\n\
-  --recv-id <id>         CAN id motor->host, hex or decimal (default: 0x18)\n\
-  --motor-type <sku>     Damiao motor model, e.g. DM4310, DM4340 (default: DM4310)\n\
+  --send-id <id>         CAN id host->motor, hex or decimal (default: 0x01)\n\
+  --recv-id <id>         CAN id motor->host, hex or decimal (default: 0x11)\n\
+  --motor-type <sku>     Damiao motor model, e.g. DM4310, DM4340 (default: DM4340)\n\
   --seconds <seconds>    Bounded run duration, >0 and <=10 (default: 2.0)\n\
   --deadline-us <us>     Per tick bus deadline in microseconds (default: 500)\n\
   --kp <gain>            MIT position gain (default: 5.0)\n\

@@ -7,7 +7,7 @@
 //! Usage:
 //!
 //! ```bash
-//! cargo run -p can-motor-control --example can_interface_check -- --interface can0
+//! cargo run -p can-motor-control --example 00_can_interface_check -- --interface can0
 //! ```
 
 use std::env;
@@ -22,7 +22,7 @@ fn print_help() {
         "Tier 0 Rust bring-up: verify a SocketCAN interface without sending frames.\n\
 \n\
 Usage:\n\
-  cargo run -p can-motor-control --example can_interface_check -- [--interface <iface>]\n\
+  cargo run -p can-motor-control --example 00_can_interface_check -- [--interface <iface>]\n\
 \n\
 Options:\n\
   --interface <iface>  SocketCAN interface name (default: can0)\n\
@@ -105,7 +105,7 @@ fn main() -> ExitCode {
     println!("  ip link show {interface}");
     println!("  candump {interface}");
     println!("\nWhen `candump` is quiet and the interface is `UP`, proceed to:");
-    println!("  cargo run -p can-motor-control --example single_motor_enable_disable -- --interface {interface}");
+    println!("  cargo run -p can-motor-control --example 01_single_motor_enable_disable -- --interface {interface}");
 
     ExitCode::SUCCESS
 }

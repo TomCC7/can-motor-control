@@ -4,13 +4,13 @@
 //! so state replies can be parsed, then disable. This example sends only the
 //! lifecycle enable/disable frames and read-oriented ticks.
 //!
-//! Run only after `can_interface_check.rs` confirms the interface and
+//! Run only after `00_can_interface_check.rs` confirms the interface and
 //! `candump <iface>` shows a quiet bus.
 //!
 //! Usage:
 //!
 //! ```bash
-//! cargo run -p can-motor-control --example single_motor_enable_disable -- \
+//! cargo run -p can-motor-control --example 01_single_motor_enable_disable -- \
 //!   --interface can0 --send-id 0x01 --recv-id 0x11 --motor-type DM4340
 //! ```
 
@@ -45,7 +45,7 @@ fn print_help() {
         "Tier 1 Rust bring-up: enable/disable one motor, with no motion commands.\n\
 \n\
 Usage:\n\
-  cargo run -p can-motor-control --example single_motor_enable_disable -- [options]\n\
+  cargo run -p can-motor-control --example 01_single_motor_enable_disable -- [options]\n\
 \n\
 Options:\n\
   --interface <iface>    SocketCAN interface name (default: can0)\n\

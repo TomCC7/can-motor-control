@@ -57,15 +57,15 @@ do not skip steps when bringing up an arm for the first time. Mock and
 `MockCanBus`-driven tests prove the API surface and CI wiring, **not**
 that real hardware will respond correctly.
 
-| Example                                | Sends                  | Hardware required             |
-| -------------------------------------- | ---------------------- | ----------------------------- |
-| `00_can_interface_check.py`            | nothing                | none (checks `/sys/class/net`) |
-| `01_single_motor_enable_disable.py`    | enable + disable       | one powered motor             |
-| `02_read_single_motor.py`              | enable + live refresh-poll + disable | one powered motor |
-| `03_single_motor_mit_hold.py`          | bounded MIT hold       | one powered motor             |
-| `04_single_motor_control_modes.py`     | one bounded mode/run   | one powered motor             |
-| `05_gripper_control.py`                | gripper PosForce sequence, MIT, or PosVel | one gripper motor |
-| `06_read_openarm_motor.py`             | live OpenArm zero-torque reader | configured OpenArm single arm |
+| Python example                         | Rust example           | Sends                  | Hardware required             |
+| -------------------------------------- | ---------------------- | ---------------------- | ----------------------------- |
+| `00_can_interface_check.py`            | `00_can_interface_check` | nothing              | none (checks `/sys/class/net`) |
+| `01_single_motor_enable_disable.py`    | `01_single_motor_enable_disable` | enable + disable | one powered motor             |
+| `02_read_single_motor.py`              | --                     | enable + live refresh-poll + disable | one powered motor |
+| `03_single_motor_mit_hold.py`          | `03_single_motor_mit_hold` | bounded MIT hold   | one powered motor             |
+| `04_single_motor_control_modes.py`     | --                     | one bounded mode/run   | one powered motor             |
+| `05_gripper_control.py`                | `05_gripper_control`   | gripper PosForce sequence, MIT, or PosVel | one gripper motor |
+| `06_read_openarm_motor.py`             | --                     | live OpenArm zero-torque reader | configured OpenArm single arm |
 
 Each example prints its assumptions before sending anything and disables
 on exit. Durations are hard-capped; live readers accept `--mock` for API-shape
@@ -73,6 +73,7 @@ checks, but mock execution does not validate hardware.
 
 For first-time setup of a Linux SocketCAN interface, see
 [`docs/socketcan-setup.md`](./docs/socketcan-setup.md).
+Run Rust examples with `cargo run -p can-motor-control --example <Rust example> -- ...`.
 
 ## Documentation
 
