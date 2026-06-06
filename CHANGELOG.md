@@ -30,7 +30,8 @@ Initial walking-skeleton release.
 - Integration tests for full lifecycle (build → connect → enable → 100-tick
   MIT loop → disable → drop) in both Rust and Python.
 - CI workflow with fmt / clippy / test / no_std cross-build / vendor
-  isolation grep / maturin wheel / pytest jobs.
+  isolation grep / maturin wheel / pytest / docs jobs, plus release-candidate
+  and protected registry publishing workflows.
 
 ### Publish order
 
@@ -42,6 +43,10 @@ cargo publish -p damiao-codec
 cargo publish -p can-motor-control
 # (can-motor-control-py is published as a wheel via maturin, not crates.io)
 ```
+
+See `docs/release.md` for the full PyPI and crates.io release runbook,
+including first-release crates.io token/manual fallback and Trusted Publishing
+setup for later releases.
 
 ### Limitations
 

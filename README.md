@@ -100,6 +100,13 @@ to CI later (`uv sync --frozen` + `uv run mkdocs build`).
 The Rust crates are documented separately with rustdoc:
 `cargo doc --no-deps --workspace --open`.
 
+## Releasing
+
+Maintainers should follow the release runbook in
+[`docs/release.md`](./docs/release.md) before publishing to PyPI or crates.io.
+It covers registry setup, release-candidate dry-runs, crates.io publish order,
+PyPI Trusted Publishing, and post-publish install checks.
+
 ## Source of truth
 
 The architecture, every requirement, and the implementation plan live under [`openspec/`](./openspec). New features should propose changes there first.

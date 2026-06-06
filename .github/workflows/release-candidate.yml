@@ -1,0 +1,118 @@
+name: Release Candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      initial_crates_io_release:
+        description: "Use staged checks for the first crates.io publication, before upstream workspace crates exist on crates.io"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  rust_quality:
+    name: Rust quality gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: thumbv7em-none-eabihf
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+      - run: cargo build -p motor-codec --no-default-features --target thumbv7em-none-eabihf
+      - run: cargo build -p damiao-codec --no-default-features --target thumbv7em-none-eabihf
+      - name: Confirm no vendor codec in can-motor-control runtime tree
+        run: |
+          if cargo tree -p can-motor-control --edges normal | grep -E '\bdamiao-codec\b|\brobostride\b|\bmyactuator\b'; then
+            echo "::error::vendor codec leaked into can-motor-control runtime dependencies"
+            exit 1
+          fi
+
+  rust_packaging:
+    name: crates.io packaging checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Dry-run motor-codec publish
+        run: cargo publish --dry-run -p motor-codec
+      - name: Dry-run damiao-codec publish
+        if: ${{ !inputs.initial_crates_io_release }}
+        run: cargo publish --dry-run -p damiao-codec
+      - name: Dry-run can-motor-control publish
+        if: ${{ !inputs.initial_crates_io_release }}
+        run: cargo publish --dry-run -p can-motor-control
+      - name: Explain staged downstream crates.io validation for initial release
+        if: ${{ inputs.initial_crates_io_release }}
+        run: |
+          echo "Initial crates.io release mode: downstream publish dry-runs require upstream crates to exist on crates.io."
+          echo "After publishing motor-codec, rerun with initial_crates_io_release=false before publishing downstream crates."
+      - name: Upload packaged crates
+        uses: actions/upload-artifact@v7
+        with:
+          name: crate-packages
+          path: target/package/*.crate
+          if-no-files-found: error
+
+  python_distributions:
+    name: Python wheel and sdist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - uses: Swatinem/rust-cache@v2
+      - name: Install Python build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install maturin numpy pytest
+      - name: Build wheel and sdist
+        working-directory: crates/can-motor-control-py
+        run: |
+          rm -rf ../../target/wheels
+          maturin build --release --strip --locked --compatibility pypi --sdist
+      - name: Install wheel into a clean venv
+        run: |
+          python -m venv /tmp/venv
+          /tmp/venv/bin/python -m pip install --upgrade pip
+          /tmp/venv/bin/pip install numpy pytest
+          /tmp/venv/bin/pip install target/wheels/can_motor_control-*.whl
+          /tmp/venv/bin/python -m pytest tests/python -v
+      - name: Upload Python distributions
+        uses: actions/upload-artifact@v7
+        with:
+          name: python-distributions
+          path: target/wheels/can_motor_control-*
+          if-no-files-found: error
+
+  docs:
+    name: Documentation build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - uses: Swatinem/rust-cache@v2
+      - name: Install uv
+        run: |
+          python -m pip install --upgrade pip
+          pip install uv
+      - name: Build docs
+        run: |
+          uv sync --frozen --reinstall-package can-motor-control
+          uv run --with mkdocs --with mkdocs-material --with 'mkdocstrings[python]' -- python -m mkdocs build --site-dir site
