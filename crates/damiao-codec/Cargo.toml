@@ -1,11 +1,14 @@
 [package]
-name = "damiao-codec"
+name = "can-motor-damiao-codec"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Damiao motor codec — implements motor-codec::MotorCodec for the Damiao CAN protocol"
+description = "Damiao motor codec for can-motor-control — implements motor_codec::MotorCodec for the Damiao CAN protocol"
+
+[lib]
+name = "damiao_codec"
 
 [features]
 default = []

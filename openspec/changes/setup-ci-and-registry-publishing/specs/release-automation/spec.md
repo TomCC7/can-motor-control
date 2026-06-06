@@ -16,7 +16,7 @@ The repository SHALL provide a release-candidate validation path that proves all
 
 #### Scenario: Rust crates pass registry dry-runs in dependency order after upstream crates exist
 - **WHEN** a maintainer runs release-candidate validation
-- **THEN** the workflow runs crates.io dry-runs for `motor-codec`, `damiao-codec`, and `can-motor-control` in dependency order when each crate's upstream workspace dependencies already exist on crates.io
+- **THEN** the workflow runs crates.io dry-runs for `can-motor-codec`, `can-motor-damiao-codec`, and `can-motor-control` in dependency order when each crate's upstream workspace dependencies already exist on crates.io
 
 #### Scenario: Initial crates.io release uses staged downstream checks
 - **WHEN** a maintainer validates a first crates.io release before upstream workspace crates exist on crates.io
@@ -35,7 +35,7 @@ The repository SHALL publish registry artifacts only from an explicit release tr
 
 #### Scenario: crates.io publish preserves dependency order
 - **WHEN** a release workflow publishes Rust crates to crates.io
-- **THEN** it publishes `motor-codec` before `damiao-codec`, publishes `damiao-codec` before `can-motor-control`, and never publishes `can-motor-control-py` as a Rust crate
+- **THEN** it publishes `can-motor-codec` before `can-motor-damiao-codec`, publishes `can-motor-damiao-codec` before `can-motor-control`, and never publishes `can-motor-control-py` as a Rust crate
 
 #### Scenario: first crates.io release is handled explicitly
 - **WHEN** a crate has not yet been published to crates.io

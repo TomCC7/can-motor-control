@@ -9,9 +9,9 @@ PyPI and the Rust crates to crates.io. It assumes the release is cut from
 | Registry | Package | Source | Notes |
 | --- | --- | --- | --- |
 | PyPI | `can-motor-control` | `crates/can-motor-control-py` | Built by maturin as the import package `can_motor_control` |
-| crates.io | `motor-codec` | `crates/motor-codec` | Publish first; no_std shared trait crate |
-| crates.io | `damiao-codec` | `crates/damiao-codec` | Publish after `motor-codec` |
-| crates.io | `can-motor-control` | `crates/can-motor-control` | Publish after `damiao-codec` |
+| crates.io | `can-motor-codec` | `crates/motor-codec` | Publish first; no_std shared trait crate, imported as `motor_codec` |
+| crates.io | `can-motor-damiao-codec` | `crates/damiao-codec` | Publish after `can-motor-codec`, imported as `damiao_codec` |
+| crates.io | `can-motor-control` | `crates/can-motor-control` | Publish after `can-motor-damiao-codec` |
 
 Do not publish `can-motor-control-py` to crates.io. It exists to build the
 Python wheel.
@@ -22,8 +22,8 @@ Before the first release:
 
 1. Verify package-name ownership/availability directly on PyPI and crates.io:
    - `https://pypi.org/project/can-motor-control/`
-   - `https://crates.io/crates/motor-codec`
-   - `https://crates.io/crates/damiao-codec`
+   - `https://crates.io/crates/can-motor-codec`
+   - `https://crates.io/crates/can-motor-damiao-codec`
    - `https://crates.io/crates/can-motor-control`
 2. Configure a protected GitHub environment named `pypi` for the PyPI publish
    job.
@@ -45,7 +45,7 @@ Publishing and use the release workflow for subsequent versions.
 Before every release, confirm these values all describe the same version:
 
 - `Cargo.toml` `workspace.package.version`
-- workspace dependency versions for `motor-codec`, `damiao-codec`, and
+- workspace dependency versions for `can-motor-codec`, `can-motor-damiao-codec`, and
   `can-motor-control`
 - `crates/can-motor-control-py/python/can_motor_control/__init__.py`
   `__version__`
@@ -81,19 +81,19 @@ gh workflow run release-candidate.yml --ref main
 ```
 
 For the first crates.io publication, leave `initial_crates_io_release` enabled.
-That mode dry-runs `motor-codec` and skips downstream crates, because
-`damiao-codec` cannot complete a crates.io dry-run until `motor-codec` exists
+That mode dry-runs `can-motor-codec` and skips downstream crates, because
+`can-motor-damiao-codec` cannot complete a crates.io dry-run until `can-motor-codec` exists
 on crates.io, and `can-motor-control` cannot complete one until its upstream
-crates exist. After publishing `motor-codec`, rerun the workflow with
-`initial_crates_io_release=false` before publishing `damiao-codec`; repeat the
+crates exist. After publishing `can-motor-codec`, rerun the workflow with
+`initial_crates_io_release=false` before publishing `can-motor-damiao-codec`; repeat the
 staged check before publishing `can-motor-control`.
 
 The workflow does not receive registry credentials. It runs:
 
 - Rust formatting, Clippy, workspace tests, no_std codec builds, and vendor
   isolation checks.
-- `cargo publish --dry-run -p motor-codec`
-- `cargo publish --dry-run -p damiao-codec` when upstream crates are already on crates.io
+- `cargo publish --dry-run -p can-motor-codec`
+- `cargo publish --dry-run -p can-motor-damiao-codec` when upstream crates are already on crates.io
 - `cargo publish --dry-run -p can-motor-control` when upstream crates are already on crates.io
 - staged downstream validation during the initial release, after upstream crates are public
 - `maturin build --release --strip --locked --compatibility pypi --sdist`
@@ -136,9 +136,9 @@ For the initial crates.io publication, publish in this order if Trusted
 Publishing cannot be configured yet:
 
 ```bash
-cargo publish -p motor-codec
-cargo publish --dry-run -p damiao-codec
-cargo publish -p damiao-codec
+cargo publish -p can-motor-codec
+cargo publish --dry-run -p can-motor-damiao-codec
+cargo publish -p can-motor-damiao-codec
 cargo publish --dry-run -p can-motor-control
 cargo publish -p can-motor-control
 ```
@@ -162,7 +162,8 @@ Rust:
 tmpdir=$(mktemp -d)
 cd "$tmpdir"
 cargo init --lib --name can_motor_control_release_check
-cargo add can-motor-control@0.1 damiao-codec@0.1
+cargo add can-motor-control@0.1
+cargo add can-motor-damiao-codec@0.1 --rename damiao-codec
 cargo check
 ```
 

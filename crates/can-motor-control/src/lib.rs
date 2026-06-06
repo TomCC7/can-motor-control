@@ -30,7 +30,7 @@ pub use transport::{
     BusPoller, CanBus, MockCanBus, MockRecordedCall, SocketCanBus, TransportError,
 };
 
-// Re-export motor-codec public types so users have a single import surface.
+// Re-export can-motor-codec public types so users have a single import surface.
 pub use motor_codec::{
     BusCapabilities, CanFrame, CodecError, Command, CommandKind, Event, FrameError, FrameFlags,
     Limits, MotorCodec, MotorRef, MotorTypeId, ParamValue,

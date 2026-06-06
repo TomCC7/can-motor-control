@@ -8,7 +8,7 @@
 ## 2. Release Candidate Workflow
 
 - [x] 2.1 Add a manual `.github/workflows/release-candidate.yml` workflow that runs all CI quality gates without registry credentials
-- [x] 2.2 Add Rust packaging dry-runs/staged first-release checks to the release-candidate workflow for `motor-codec`, `damiao-codec`, and `can-motor-control` in dependency order
+- [x] 2.2 Add Rust packaging dry-runs/staged first-release checks to the release-candidate workflow for `can-motor-codec`, `can-motor-damiao-codec`, and `can-motor-control` in dependency order
 - [x] 2.3 Add Python wheel and sdist builds to the release-candidate workflow from `crates/can-motor-control-py`
 - [x] 2.4 Upload release-candidate `.crate`, wheel, and sdist outputs only as GitHub workflow artifacts
 
@@ -16,7 +16,7 @@
 
 - [x] 3.1 Add a protected release workflow triggered by version tags and manual dispatch
 - [x] 3.2 Add a PyPI publish job that downloads prebuilt Python distributions and publishes with `pypa/gh-action-pypi-publish` using Trusted Publishing/OIDC
-- [x] 3.3 Add a crates.io publish job that publishes `motor-codec`, `damiao-codec`, and `can-motor-control` in dependency order and excludes `can-motor-control-py`
+- [x] 3.3 Add a crates.io publish job that publishes `can-motor-codec`, `can-motor-damiao-codec`, and `can-motor-control` in dependency order and excludes `can-motor-control-py`
 - [x] 3.4 Configure the release workflow with minimal job permissions and a GitHub environment for maintainer approval
 - [x] 3.5 Document the first-release crates.io fallback for crates that cannot use Trusted Publishing until after initial publication
 

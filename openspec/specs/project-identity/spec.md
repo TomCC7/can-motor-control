@@ -39,10 +39,10 @@ runtime package MUST NOT imply Damiao-only scope.
 
 ### Requirement: Vendor and trait crate names are explicit and publishable
 The implementation SHALL choose publishable crate names for the shared trait
-crate and Damiao codec before release. The shared trait crate MAY remain
-`motor-codec` if it is unpublished and accurately vendor-neutral; the Damiao
-codec SHOULD publish as `damiao-codec` unless implementation discovers a
-compatibility reason to keep `damiao-codec`.
+crate and Damiao codec before release. The shared trait crate SHALL publish as
+`can-motor-codec`; the Damiao codec SHALL publish as
+`can-motor-damiao-codec`. Their Rust import crate names SHALL remain
+`motor_codec` and `damiao_codec`.
 
 #### Scenario: Publish names are checked before dry-run
 - **WHEN** the rename implementation reaches publish verification

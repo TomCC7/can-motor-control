@@ -8,7 +8,7 @@
 //! together with the shared types every vendor agrees on ([`CanFrame`],
 //! [`Command`], [`Event`], [`MotorTypeId`], [`Limits`], [`BusCapabilities`]).
 //!
-//! The crate is `no_std`. Vendor codec implementations (e.g. `damiao-codec`)
+//! The crate is `no_std`. Vendor codec implementations (e.g. the `can-motor-damiao-codec` package)
 //! live in their own crates; `can-motor-control` depends on this trait crate only
 //! and never on a specific vendor.
 //!

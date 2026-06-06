@@ -31,7 +31,7 @@ Adding Robostride (or any other vendor) is a purely additive change:
 
 1. **Add a variant** to `motor_codec::MotorTypeId`:
    ```rust
-   MotorTypeId::Robostride(u16)  // the u16 is opaque to motor-codec
+   MotorTypeId::Robostride(u16)  // the u16 is opaque to motor_codec
    ```
    The enum is `#[non_exhaustive]`, so existing downstream code keeps
    compiling.
@@ -81,7 +81,7 @@ don't belong on the common trait. They live on a per-vendor extension
 trait in the vendor's own crate:
 
 ```rust
-// in damiao-codec
+// in damiao_codec
 pub trait DamiaoCodecExt {
     fn encode_read_param(&self, motor: MotorRef<'_>, rid: DamiaoRid) -> CanFrame;
     fn encode_write_param(&self, motor: MotorRef<'_>, rid: DamiaoRid, val: ParamValue) -> CanFrame;

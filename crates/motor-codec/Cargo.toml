@@ -1,11 +1,14 @@
 [package]
-name = "motor-codec"
+name = "can-motor-codec"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Vendor-agnostic motor codec trait and shared types for CAN-bus motor families (Damiao, Robostride, ...)"
+
+[lib]
+name = "motor_codec"
 
 [features]
 default = []

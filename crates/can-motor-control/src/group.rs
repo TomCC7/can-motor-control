@@ -712,7 +712,7 @@ mod integration_tests {
     use crate::CanBus;
 
     /// Codec stub specialized for these tests so we don't need to bring
-    /// damiao-codec into the unit-test compile graph.
+    /// can-motor-damiao-codec into the unit-test compile graph.
     struct StubCodec;
     impl MotorCodec for StubCodec {
         fn vendor_name(&self) -> &'static str {

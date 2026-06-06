@@ -1,6 +1,6 @@
 ## Context
 
-The workspace publishes three Rust library crates (`motor-codec`, `damiao-codec`, `can-motor-control`) and one Python package (`can-motor-control`) built from the `can-motor-control-py` PyO3/maturin crate. The current CI already runs Rust formatting, Clippy, workspace tests, no_std builds, vendor-isolation checks, a Linux maturin wheel build, and Python smoke tests. The README and changelog describe future installation commands and the crates.io dependency order, but there is no release workflow or maintainer guide for actually publishing v0.1.0.
+The workspace publishes three Rust library crates (`can-motor-codec`, `can-motor-damiao-codec`, `can-motor-control`) and one Python package (`can-motor-control`) built from the `can-motor-control-py` PyO3/maturin crate. The current CI already runs Rust formatting, Clippy, workspace tests, no_std builds, vendor-isolation checks, a Linux maturin wheel build, and Python smoke tests. The README and changelog describe future installation commands and the crates.io dependency order, but there is no release workflow or maintainer guide for actually publishing v0.1.0.
 
 Key constraints:
 - The Rust workspace uses a shared `workspace.package.version = "0.1.0"` and Rust MSRV 1.85.
@@ -52,7 +52,7 @@ Alternative considered: `maturin upload` or `uv publish` with a stored PyPI API 
 
 ### Decision 4 — Publish Rust crates in explicit dependency order
 
-The Rust release flow should run `cargo publish --dry-run -p motor-codec`, then `damiao-codec`, then `can-motor-control`, and publish in the same order once upstream workspace crates already exist on crates.io. For the first crates.io release, downstream dry-runs cannot fully resolve until upstream crates are public, so release-candidate validation should dry-run the first crate and explicitly skip downstream registry checks until maintainers rerun dry-runs after each upstream crate is published. The binding crate `can-motor-control-py` remains excluded from crates.io publication.
+The Rust release flow should run `cargo publish --dry-run -p can-motor-codec`, then `can-motor-damiao-codec`, then `can-motor-control`, and publish in the same order once upstream workspace crates already exist on crates.io. For the first crates.io release, downstream dry-runs cannot fully resolve until upstream crates are public, so release-candidate validation should dry-run the first crate and explicitly skip downstream registry checks until maintainers rerun dry-runs after each upstream crate is published. The binding crate `can-motor-control-py` remains excluded from crates.io publication.
 
 This matches the current changelog and the workspace dependency graph. Dry-runs catch packaging metadata errors before upload; the actual upload order ensures downstream crates can resolve already-published dependency versions.
 
@@ -62,7 +62,7 @@ Alternative considered: `cargo publish --workspace`. Rejected because the worksp
 
 crates.io Trusted Publishing should be the preferred CI path for crates that already exist on crates.io, using a protected release environment, `id-token: write`, and the official crates.io OIDC authentication action when configured. However, crates.io requires a crate to already be published before Trusted Publishing can be configured, so the v0.1.0 initial publication may need a maintainer-held API token or manual local `cargo publish` after dry-runs.
 
-The guide must make this distinction explicit for each crate. After the first successful publication of `motor-codec`, `damiao-codec`, and `can-motor-control`, maintainers should configure crates.io Trusted Publishing for the release workflow and remove any long-lived CI token path.
+The guide must make this distinction explicit for each crate. After the first successful publication of `can-motor-codec`, `can-motor-damiao-codec`, and `can-motor-control`, maintainers should configure crates.io Trusted Publishing for the release workflow and remove any long-lived CI token path.
 
 Alternative considered: require long-lived `CARGO_REGISTRY_TOKEN` in GitHub secrets indefinitely. Rejected because Trusted Publishing is now available on crates.io and reduces token exposure for subsequent releases.
 

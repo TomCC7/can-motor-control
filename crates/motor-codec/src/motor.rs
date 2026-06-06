@@ -9,7 +9,7 @@
 #[non_exhaustive]
 pub enum MotorTypeId {
     /// Damiao motor SKU (DM4310, DM4340, ...). The `u16` is the SKU discriminant
-    /// defined in `damiao-codec`.
+    /// defined in `can-motor-damiao-codec`.
     Damiao(u16),
     /// Robostride motor SKU. Reserved for a future vendor codec crate.
     Robostride(u16),

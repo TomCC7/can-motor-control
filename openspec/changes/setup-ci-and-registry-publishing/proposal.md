@@ -6,7 +6,7 @@ The project already has a mixed Rust/Python release surface, but registry public
 
 - Add release automation requirements for pull-request CI, release-candidate validation, and tag-driven publishing.
 - Extend the existing GitHub Actions approach from build-only CI into registry-ready workflows for Rust crates and Python wheels.
-- Document maintainer guidance for publishing `motor-codec`, `damiao-codec`, and `can-motor-control` to crates.io in dependency order.
+- Document maintainer guidance for publishing `can-motor-codec`, `can-motor-damiao-codec`, and `can-motor-control` to crates.io in dependency order.
 - Document maintainer guidance for publishing the `can-motor-control` Python package built from `crates/can-motor-control-py` to PyPI.
 - Add dry-run and safety gates so release artifacts are validated before any registry upload.
 
