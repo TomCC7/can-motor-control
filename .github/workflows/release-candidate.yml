@@ -58,6 +58,13 @@ jobs:
         run: |
           echo "Initial crates.io release mode: downstream publish dry-runs require upstream crates to exist on crates.io."
           echo "After publishing can-motor-codec, rerun with initial_crates_io_release=false before publishing downstream crates."
+      - name: Package crates for artifact upload
+        run: |
+          cargo package -p can-motor-codec
+          if [[ "${{ inputs.initial_crates_io_release }}" != "true" ]]; then
+            cargo package -p can-motor-damiao-codec
+            cargo package -p can-motor-control
+          fi
       - name: Upload packaged crates
         uses: actions/upload-artifact@v7
         with:
