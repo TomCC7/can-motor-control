@@ -1,6 +1,5 @@
 .claude/
 target/
-Cargo.lock
 **/__pycache__/
 *.pyc
 *.pyo
