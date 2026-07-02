@@ -12,12 +12,9 @@ use crate::motor::Motor;
 use crate::spec::GripperOpeningSpec;
 
 const DEFAULT_OPENING_CURRENT: f64 = 0.15;
-const DEFAULT_OPENING_VELOCITY: f64 = 0.2;
-pub(crate) const OPENING_CALIBRATION_TRAVEL_RAD: f64 = 1.0;
-pub(crate) const OPENING_CALIBRATION_MIN_MOVEMENT_RAD: f64 = 0.01;
-pub(crate) const OPENING_CALIBRATION_MIN_SPAN_RAD: f64 = 0.05;
-pub(crate) const OPENING_CALIBRATION_STALL_EPS_RAD: f64 = 0.001;
-pub(crate) const OPENING_CALIBRATION_STABLE_TICKS: usize = 3;
+const DEFAULT_OPENING_VELOCITY: f64 = 10.0;
+pub(crate) const OPENING_CALIBRATION_TRAVEL_RAD: f64 = 2.0;
+pub(crate) const OPENING_CALIBRATION_MIN_SPAN_RAD: f64 = 0.1;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub(crate) struct OpeningCalibration {
@@ -516,7 +513,9 @@ impl Gripper {
         if span < OPENING_CALIBRATION_MIN_SPAN_RAD {
             return Err(Error::OpeningCalibrationFailed {
                 name: self.group.name().to_string(),
-                reason: "calibrated opening span is too small",
+                reason: format!(
+                    "calibrated opening span is too small: closed={closed_position:.5}, open={open_position:.5}, span={span:.5}, minimum={OPENING_CALIBRATION_MIN_SPAN_RAD:.5} rad"
+                ),
             });
         }
         let Some(opening) = self.opening.as_mut() else {
@@ -529,10 +528,8 @@ impl Gripper {
         Ok(())
     }
 
-    pub(crate) fn opening_calibration_command(&mut self, raw_direction: f64) -> Result<(), Error> {
+    pub(crate) fn opening_calibration_command(&mut self, q: f64) -> Result<(), Error> {
         let current = self.opening_current(None)?;
-        let q = self.motor().position() + raw_direction * OPENING_CALIBRATION_TRAVEL_RAD;
-        self.set_mode(CommandKind::PosForce)?;
         self.pos_force_control(PosForceCmd {
             q,
             dq: DEFAULT_OPENING_VELOCITY,

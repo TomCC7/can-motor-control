@@ -89,6 +89,12 @@ impl MotorCodec for MockFeedbackCodec {
         }
     }
 
+    fn encode_refresh(&self, m: MotorRef<'_>) -> Result<Option<CanFrame>, CodecError> {
+        CanFrame::classical(m.recv_id, &[0xCC])
+            .map(Some)
+            .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
+    }
+
     fn decode(&self, frame: &CanFrame) -> Result<Option<Event>, CodecError> {
         if frame.id != self.recv_id {
             return Ok(None);
@@ -119,6 +125,7 @@ struct Args {
     opening_direction: OpeningDirection,
     default_current: f64,
     current: Option<f64>,
+    calibrate_only: bool,
     acknowledged: bool,
 }
 
@@ -139,6 +146,7 @@ Options:\n\
   --opening-direction <increasing_position|decreasing_position>\n\
   --default-current <value>               Default opening current per-unit (default: 0.15)\n\
   --current <value>                       Optional midpoint command current override\n\
+  --calibrate-only                        Run calibration, print state, disable, and exit\n\
   --seconds <seconds>                     Per-opening duration, >0 and <=10\n\
   --deadline-us <us>                      Per tick bus deadline in microseconds\n\
   --i-understand-this-moves-the-gripper   Required safety acknowledgement\n\
@@ -195,6 +203,7 @@ fn parse_args() -> Result<Option<Args>, String> {
         opening_direction: OpeningDirection::IncreasingPosition,
         default_current: DEFAULT_CURRENT,
         current: None,
+        calibrate_only: false,
         acknowledged: false,
     };
     let mut args = env::args().skip(1);
@@ -222,6 +231,7 @@ fn parse_args() -> Result<Option<Args>, String> {
                 parsed.default_current = parse_f64(&mut args, "--default-current")?
             }
             "--current" => parsed.current = Some(parse_f64(&mut args, "--current")?),
+            "--calibrate-only" => parsed.calibrate_only = true,
             "--i-understand-this-moves-the-gripper" => parsed.acknowledged = true,
             _ => return Err(format!("unknown argument: {arg}")),
         }
@@ -246,19 +256,71 @@ fn parse_args() -> Result<Option<Args>, String> {
     Ok(Some(parsed))
 }
 
-fn tick_for(
+fn gripper_position(robot: &can_motor_control::Robot) -> Result<f64, Box<dyn std::error::Error>> {
+    let motor = robot
+        .group("grip")
+        .and_then(|group| group.as_gripper())
+        .map(|gripper| gripper.motor())
+        .ok_or("missing gripper group")?;
+    Ok(motor.position())
+}
+
+fn print_gripper_state(
+    robot: &can_motor_control::Robot,
+    label: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let motor = robot
+        .group("grip")
+        .and_then(|group| group.as_gripper())
+        .map(|gripper| gripper.motor())
+        .ok_or("missing gripper group")?;
+    println!(
+        "  [{label}] pos={:+.5} vel={:+.5} tau={:+.5} t_mos={} t_rotor={}",
+        motor.position(),
+        motor.velocity(),
+        motor.torque(),
+        motor.temperature_mos(),
+        motor.temperature_rotor()
+    );
+    Ok(())
+}
+
+fn drive_opening_for(
     robot: &mut can_motor_control::Robot,
+    label: &str,
+    opening: f64,
+    current: Option<f64>,
     seconds: f64,
     deadline_us: u64,
 ) -> Result<usize, Box<dyn std::error::Error>> {
+    println!("commanding {label} for {seconds:.2}s...");
+    print_gripper_state(robot, "before")?;
     let deadline = Instant::now() + Duration::from_secs_f64(seconds);
     let tick_deadline = Duration::from_micros(deadline_us);
     let mut ticks = 0;
+    let mut next_debug = Instant::now() + Duration::from_millis(250);
     while Instant::now() < deadline {
+        {
+            let gripper = robot
+                .group_mut("grip")
+                .and_then(|group| group.as_gripper_mut())
+                .ok_or("missing gripper group")?;
+            gripper.set_opening(opening, current)?;
+        }
         robot.tick(tick_deadline)?;
         ticks += 1;
+        if std::env::var_os("CAN_MOTOR_CONTROL_CALIBRATION_DEBUG").is_some()
+            && Instant::now() >= next_debug
+        {
+            println!(
+                "  [{label}] tick={ticks} pos={:+.5}",
+                gripper_position(robot)?
+            );
+            next_debug = Instant::now() + Duration::from_millis(250);
+        }
         thread::sleep(Duration::from_millis(1));
     }
+    print_gripper_state(robot, "after")?;
     Ok(ticks)
 }
 
@@ -284,7 +346,14 @@ fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     println!(
         "  - lifecycle          : connect -> enable -> automatic opening calibration -> commands"
     );
-    println!("  - commands           : open() -> set_opening(0.5) -> close()");
+    println!(
+        "  - commands           : {}",
+        if args.calibrate_only {
+            "calibration only"
+        } else {
+            "open() -> set_opening(0.5) -> close()"
+        }
+    );
     println!("  - safety             : clear the gripper jaws before sending commands");
     let _ = io::stdout().flush();
 
@@ -313,30 +382,40 @@ fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     robot.connect()?;
     robot.enable()?;
 
-    {
-        let gripper = robot
-            .group_mut("grip")
-            .and_then(|group| group.as_gripper_mut())
-            .ok_or("missing gripper group")?;
-        gripper.open(None)?;
+    println!("calibration complete.");
+    print_gripper_state(&robot, "after calibration")?;
+
+    if args.calibrate_only {
+        println!("calibrate-only requested; disabling and exiting before movement commands.");
+        robot.disable()?;
+        println!("done.");
+        return Ok(());
     }
-    let mut ticks = tick_for(&mut robot, args.seconds, args.deadline_us)?;
-    {
-        let gripper = robot
-            .group_mut("grip")
-            .and_then(|group| group.as_gripper_mut())
-            .ok_or("missing gripper group")?;
-        gripper.set_opening(0.5, args.current)?;
-    }
-    ticks += tick_for(&mut robot, args.seconds, args.deadline_us)?;
-    {
-        let gripper = robot
-            .group_mut("grip")
-            .and_then(|group| group.as_gripper_mut())
-            .ok_or("missing gripper group")?;
-        gripper.close(None)?;
-    }
-    ticks += tick_for(&mut robot, args.seconds, args.deadline_us)?;
+
+    let mut ticks = drive_opening_for(
+        &mut robot,
+        "open()",
+        1.0,
+        None,
+        args.seconds,
+        args.deadline_us,
+    )?;
+    ticks += drive_opening_for(
+        &mut robot,
+        "set_opening(0.5)",
+        0.5,
+        args.current,
+        args.seconds,
+        args.deadline_us,
+    )?;
+    ticks += drive_opening_for(
+        &mut robot,
+        "close()",
+        0.0,
+        None,
+        args.seconds,
+        args.deadline_us,
+    )?;
     robot.disable()?;
 
     println!("completed {ticks} ticks; done.");

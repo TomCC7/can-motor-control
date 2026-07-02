@@ -110,6 +110,12 @@ def main() -> int:
     import can_motor_control
     from can_motor_control.damiao import DamiaoCodec
 
+    if args.mock and can_motor_control.MockFeedbackCodec is None:
+        raise SystemExit(
+            "MockFeedbackCodec is unavailable in the loaded native extension. "
+            "Rebuild/install the Python package before running this mock opening example."
+        )
+
     transport = (
         can_motor_control.MockCanBus.new_fd("vcan_mock")
         if args.mock and args.fd

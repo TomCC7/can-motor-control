@@ -103,7 +103,7 @@ pub enum Error {
         /// Gripper group name.
         name: String,
         /// Human-readable reason.
-        reason: &'static str,
+        reason: String,
     },
 
     /// Builder-style mutation after `connect()`.

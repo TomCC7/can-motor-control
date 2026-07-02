@@ -11,13 +11,18 @@ from can_motor_control._native import (
     MotorGroup,
     Robot,
     RobotBuilder,
-    MockFeedbackCodec,
     DmError,
     TransportError,
     CodecError,
     ConfigError,
     LifecycleError,
 )
+
+try:
+    from can_motor_control._native import MockFeedbackCodec
+except ImportError:
+    MockFeedbackCodec = None  # type: ignore[assignment]
+
 from can_motor_control import damiao
 
 __all__ = [
@@ -31,7 +36,6 @@ __all__ = [
     "MotorGroup",
     "Robot",
     "RobotBuilder",
-    "MockFeedbackCodec",
     "DmError",
     "TransportError",
     "CodecError",
@@ -39,5 +43,8 @@ __all__ = [
     "LifecycleError",
     "damiao",
 ]
+
+if MockFeedbackCodec is not None:
+    __all__.append("MockFeedbackCodec")
 
 __version__ = "0.1.0"

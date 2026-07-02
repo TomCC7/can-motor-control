@@ -19,3 +19,7 @@ _Avoid_: Direction sign, motor polarity
 **Default opening current**:
 The per-gripper configured per-unit motor current used by opening commands when a call does not provide an explicit current.
 _Avoid_: Default force, grip force
+
+**Command-tick pair**:
+A control-loop exchange where one outbound command or query is followed by one `Robot.tick()` to receive that command's response. Do not expect `tick()` to produce fresh motor feedback unless a command or query was sent first.
+_Avoid_: Passive polling, free-running feedback
