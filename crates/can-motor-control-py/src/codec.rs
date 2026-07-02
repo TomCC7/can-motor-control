@@ -3,7 +3,9 @@
 use std::sync::{Arc, Mutex};
 
 use damiao_codec::{DamiaoCodec, DamiaoMotorType};
-use motor_codec::{MotorCodec, MotorTypeId};
+use motor_codec::{
+    CanFrame, CodecError, Command, Event, Limits, MotorCodec, MotorRef, MotorTypeId,
+};
 use pyo3::prelude::*;
 
 /// Same shape as `TransportHandle`: a Box-trait-object that the builder
@@ -42,6 +44,116 @@ impl PyDamiaoCodec {
     fn new() -> Self {
         Self {
             handle: CodecHandle::new(DamiaoCodec::new()),
+        }
+    }
+}
+
+struct MockFeedbackCodec {
+    recv_id: u32,
+    position: Mutex<f64>,
+}
+
+impl MockFeedbackCodec {
+    fn new(recv_id: u32) -> Self {
+        Self {
+            recv_id,
+            position: Mutex::new(0.0),
+        }
+    }
+}
+
+impl MotorCodec for MockFeedbackCodec {
+    fn vendor_name(&self) -> &'static str {
+        "mock-feedback"
+    }
+
+    fn supports(&self, t: MotorTypeId) -> bool {
+        matches!(t, MotorTypeId::Damiao(_))
+    }
+
+    fn limits(&self, _: MotorTypeId) -> Result<Limits, CodecError> {
+        Ok(Limits {
+            p_max: 1.0,
+            v_max: 1.0,
+            t_max: 1.0,
+        })
+    }
+
+    fn bind_to_bus(&mut self, _: motor_codec::BusCapabilities) {}
+
+    fn encode_enable(&self, m: MotorRef<'_>) -> Result<CanFrame, CodecError> {
+        CanFrame::classical(m.send_id, &[0xFC])
+            .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
+    }
+
+    fn encode_disable(&self, m: MotorRef<'_>) -> Result<CanFrame, CodecError> {
+        CanFrame::classical(m.send_id, &[0xFD])
+            .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
+    }
+
+    fn encode_set_zero(&self, m: MotorRef<'_>) -> Result<CanFrame, CodecError> {
+        if let Ok(mut position) = self.position.lock() {
+            *position = 0.0;
+        }
+        CanFrame::classical(m.recv_id, &[0xFE])
+            .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
+    }
+
+    fn encode_command(&self, m: MotorRef<'_>, command: &Command) -> Result<CanFrame, CodecError> {
+        if let Command::PosForce { q, .. } = *command {
+            if let Ok(mut position) = self.position.lock() {
+                *position = q;
+            }
+            CanFrame::classical(m.recv_id, &[0x55])
+                .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
+        } else {
+            CanFrame::classical(m.send_id, &[0x55])
+                .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
+        }
+    }
+
+    fn encode_refresh(&self, m: MotorRef<'_>) -> Result<Option<CanFrame>, CodecError> {
+        CanFrame::classical(m.recv_id, &[0xCC])
+            .map(Some)
+            .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
+    }
+
+    fn decode(&self, frame: &CanFrame) -> Result<Option<Event>, CodecError> {
+        if frame.id != self.recv_id {
+            return Ok(None);
+        }
+        let q = *self.position.lock().map_err(|_| CodecError::DecodeFailed {
+            reason: "mock lock",
+        })?;
+        Ok(Some(Event::State {
+            motor_id: self.recv_id,
+            q,
+            dq: 0.0,
+            tau: 0.0,
+            t_mos: 30,
+            t_rotor: 35,
+        }))
+    }
+}
+
+/// A tiny feedback codec for examples and tests that use `MockCanBus`.
+///
+/// It accepts Damiao motor type ids and echoes each `PosForce` command's raw
+/// target position as a state frame from `recv_id`. This lets dry-run examples
+/// exercise lifecycle code such as automatic opening calibration without real
+/// hardware. Do not use it with `SocketCanBus`.
+#[pyclass(name = "MockFeedbackCodec", module = "can_motor_control")]
+pub struct PyMockFeedbackCodec {
+    pub(crate) handle: CodecHandle,
+}
+
+#[pymethods]
+impl PyMockFeedbackCodec {
+    /// Create a mock feedback codec for a single motor receive id.
+    #[new]
+    fn new(recv_id: u32) -> Self {
+        Self {
+            handle: CodecHandle::new(MockFeedbackCodec::new(recv_id)),
         }
     }
 }

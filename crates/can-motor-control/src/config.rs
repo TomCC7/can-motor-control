@@ -8,7 +8,7 @@ use serde::Deserialize;
 
 use crate::error::Error;
 use crate::robot::{Robot, RobotBuilder};
-use crate::spec::MotorSpec;
+use crate::spec::{GripperOpeningSpec, MotorSpec, OpeningDirection};
 use crate::transport::{CanBus, SocketCanBus};
 
 /// Factory function that produces a vendor codec on demand.
@@ -98,6 +98,10 @@ struct GroupConfig {
     #[serde(default)]
     default_control_mode: Option<String>,
     #[serde(default)]
+    opening_direction: Option<String>,
+    #[serde(default)]
+    default_current: Option<f64>,
+    #[serde(default)]
     motors: Vec<MotorConfig>,
     motor: Option<MotorConfig>,
     /// Forbidden: vendor lives on the bus, not on the group. We accept it in
@@ -135,6 +139,13 @@ impl Robot {
             if let Some(_v) = &g.vendor {
                 return Err(Error::ConfigSchema(format!(
                     "group '{}': vendor belongs on [bus.<name>], not on [[group]]",
+                    g.name
+                )));
+            }
+            if g.kind != "gripper" && (g.opening_direction.is_some() || g.default_current.is_some())
+            {
+                return Err(Error::ConfigSchema(format!(
+                    "group '{}': opening configuration is only valid for kind='gripper'",
                     g.name
                 )));
             }
@@ -197,6 +208,7 @@ impl Robot {
                     builder = builder.add_arm(g.name, g.bus, motors?);
                 }
                 "gripper" => {
+                    let opening = parse_gripper_opening(&g)?;
                     let motor_cfg = g.motor.ok_or_else(|| {
                         Error::ConfigSchema(format!(
                             "group '{}': kind='gripper' requires 'motor' (singular), not 'motors'",
@@ -204,7 +216,12 @@ impl Robot {
                         ))
                     })?;
                     let m = resolve(&motor_cfg)?;
-                    builder = builder.add_gripper(g.name, g.bus, m);
+                    builder = match opening {
+                        Some(opening) => {
+                            builder.add_gripper_with_opening(g.name, g.bus, m, opening)
+                        }
+                        None => builder.add_gripper(g.name, g.bus, m),
+                    };
                 }
                 "generic" => {
                     let motors: Result<Vec<_>, _> = g.motors.iter().map(resolve).collect();
@@ -219,5 +236,99 @@ impl Robot {
             }
         }
         builder.build()
+    }
+}
+
+fn parse_gripper_opening(g: &GroupConfig) -> Result<Option<GripperOpeningSpec>, Error> {
+    let direction = match g.opening_direction.as_deref() {
+        Some("increasing_position") => Some(OpeningDirection::IncreasingPosition),
+        Some("decreasing_position") => Some(OpeningDirection::DecreasingPosition),
+        Some(other) => {
+            return Err(Error::ConfigSchema(format!(
+                "group '{}': unknown opening_direction '{other}' (expected increasing_position|decreasing_position)",
+                g.name
+            )));
+        }
+        None => None,
+    };
+    if let Some(current) = g.default_current {
+        if current <= 0.0 || current > 1.0 {
+            return Err(Error::ConfigSchema(format!(
+                "group '{}': default_current must be > 0.0 and <= 1.0, got {current}",
+                g.name
+            )));
+        }
+        if direction.is_none() {
+            return Err(Error::ConfigSchema(format!(
+                "group '{}': default_current requires opening_direction",
+                g.name
+            )));
+        }
+    }
+    Ok(direction.map(|direction| GripperOpeningSpec::new(direction, g.default_current)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn gripper_config(
+        opening_direction: Option<&str>,
+        default_current: Option<f64>,
+    ) -> GroupConfig {
+        GroupConfig {
+            name: "grip".to_string(),
+            kind: "gripper".to_string(),
+            bus: "main".to_string(),
+            default_control_mode: None,
+            opening_direction: opening_direction.map(str::to_string),
+            default_current,
+            motors: Vec::new(),
+            motor: None,
+            vendor: None,
+        }
+    }
+
+    #[test]
+    fn parse_opening_direction_increasing() {
+        let cfg = gripper_config(Some("increasing_position"), Some(0.2));
+        let got = parse_gripper_opening(&cfg).unwrap().unwrap();
+        assert_eq!(got.direction, OpeningDirection::IncreasingPosition);
+        assert_eq!(got.default_current, Some(0.2));
+    }
+
+    #[test]
+    fn parse_opening_direction_decreasing() {
+        let cfg = gripper_config(Some("decreasing_position"), None);
+        let got = parse_gripper_opening(&cfg).unwrap().unwrap();
+        assert_eq!(got.direction, OpeningDirection::DecreasingPosition);
+        assert_eq!(got.default_current, None);
+    }
+
+    #[test]
+    fn parse_opening_rejects_unknown_direction() {
+        let cfg = gripper_config(Some("clockwise"), None);
+        assert!(matches!(
+            parse_gripper_opening(&cfg),
+            Err(Error::ConfigSchema(_))
+        ));
+    }
+
+    #[test]
+    fn parse_opening_rejects_invalid_default_current() {
+        let cfg = gripper_config(Some("increasing_position"), Some(1.5));
+        assert!(matches!(
+            parse_gripper_opening(&cfg),
+            Err(Error::ConfigSchema(_))
+        ));
+    }
+
+    #[test]
+    fn parse_opening_requires_direction_for_default_current() {
+        let cfg = gripper_config(None, Some(0.2));
+        assert!(matches!(
+            parse_gripper_opening(&cfg),
+            Err(Error::ConfigSchema(_))
+        ));
     }
 }

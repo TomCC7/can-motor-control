@@ -19,7 +19,7 @@ mod robot;
 mod spec;
 mod transport;
 
-use codec::{PyDamiaoCodec, PyMotorType};
+use codec::{PyDamiaoCodec, PyMockFeedbackCodec, PyMotorType};
 use frame::PyCanFrame;
 use robot::{PyArm, PyGripper, PyMotor, PyMotorGroup, PyRobot, PyRobotBuilder};
 use spec::PyMotorSpec;
@@ -78,6 +78,7 @@ fn _native(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyRobot>()?;
     m.add_class::<PyRobotBuilder>()?;
     m.add_class::<PyDamiaoCodec>()?;
+    m.add_class::<PyMockFeedbackCodec>()?;
     m.add_class::<PyMotorType>()?;
 
     // Exceptions.

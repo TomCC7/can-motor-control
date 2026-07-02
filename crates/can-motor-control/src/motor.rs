@@ -24,6 +24,7 @@ pub struct Motor {
     t_rotor: i16,
     is_enabled: bool,
     fault: Option<FaultCode>,
+    state_sequence: u64,
 }
 
 impl Motor {
@@ -40,6 +41,7 @@ impl Motor {
             t_rotor: 0,
             is_enabled: false,
             fault: None,
+            state_sequence: 0,
         }
     }
 
@@ -98,6 +100,10 @@ impl Motor {
         self.fault
     }
 
+    pub(crate) fn state_sequence(&self) -> u64 {
+        self.state_sequence
+    }
+
     pub(crate) fn apply_event(&mut self, ev: &Event) {
         match *ev {
             Event::State {
@@ -114,6 +120,7 @@ impl Motor {
                 self.t_mos = t_mos;
                 self.t_rotor = t_rotor;
                 self.fault = None;
+                self.state_sequence = self.state_sequence.wrapping_add(1);
                 // is_enabled stays whatever the lifecycle setter last set.
             }
             Event::Fault { code, .. } => {

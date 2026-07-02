@@ -30,7 +30,9 @@ motors = [
 
 # Example gripper on the same bus (uncomment to enable):
 # [[group]]
-# name = "grip"
-# kind = "gripper"
-# bus  = "main"
+# name              = "grip"
+# kind              = "gripper"
+# bus               = "main"
+# opening_direction = "increasing_position" # or "decreasing_position"
+# default_current   = 0.2                    # per-unit current for open/close/set_opening
 # motor = { name = "g", type = "DM4310", send_id = 0x08, recv_id = 0x18 }

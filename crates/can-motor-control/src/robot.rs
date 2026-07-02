@@ -2,17 +2,25 @@
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::thread;
+use std::time::{Duration, Instant};
 
 use mio::Token;
 
 use crate::bus::{Bus, RouteKey};
 use crate::error::Error;
-use crate::group::{Arm, Generic, Gripper, GroupKind, MotorGroup};
+use crate::group::{Arm, Generic, Gripper, GroupKind, MotorGroup, OPENING_CALIBRATION_TRAVEL_RAD};
 use crate::motor::Motor;
-use crate::spec::{GroupSpecKind, MotorSpec};
+use crate::spec::{GripperOpeningSpec, GroupSpecKind, MotorSpec};
 use crate::transport::{BusPoller, CanBus};
 use motor_codec::{CommandKind, MotorCodec};
+
+#[cfg(test)]
+const OPENING_CALIBRATION_ENDPOINT_DWELL: Duration = Duration::from_millis(100);
+#[cfg(not(test))]
+const OPENING_CALIBRATION_ENDPOINT_DWELL: Duration = Duration::from_millis(1500);
+const OPENING_CALIBRATION_TICK: Duration = Duration::from_millis(10);
+const OPENING_CALIBRATION_REFRESH_TIMEOUT: Duration = Duration::from_millis(250);
 
 /// A configured robot: named buses + named groups + lifecycle state.
 pub struct Robot {
@@ -128,11 +136,153 @@ impl Robot {
             return Err(Error::NotConnected);
         }
         for name in &self.group_order.clone() {
+            let has_opening_control = self
+                .groups
+                .get(name)
+                .and_then(GroupKind::as_gripper)
+                .is_some_and(Gripper::has_opening_control);
+            if has_opening_control {
+                self.groups
+                    .get_mut(name)
+                    .and_then(GroupKind::as_gripper_mut)
+                    .expect("checked gripper kind")
+                    .set_mode(CommandKind::PosForce)?;
+            }
             if let Some(g) = self.groups.get_mut(name) {
                 g.enable_all()?;
             }
+            if has_opening_control {
+                if let Err(err) = self.calibrate_gripper_opening(name) {
+                    if let Some(g) = self.groups.get_mut(name) {
+                        if let Some(gripper) = g.as_gripper_mut() {
+                            gripper.clear_opening_calibration();
+                        }
+                        let _ = g.disable_all();
+                    }
+                    return Err(err);
+                }
+            }
         }
         Ok(())
+    }
+
+    fn calibrate_gripper_opening(&mut self, name: &str) -> Result<(), Error> {
+        let Some(opening_direction_sign) = self
+            .groups
+            .get_mut(name)
+            .and_then(GroupKind::as_gripper_mut)
+            .and_then(|gripper| {
+                gripper.clear_opening_calibration();
+                gripper.opening_direction_sign()
+            })
+        else {
+            return Ok(());
+        };
+
+        self.refresh_gripper_feedback(name)?;
+
+        let start_position = self.gripper_position(name)?;
+        let closed_position = self.calibrate_gripper_endpoint(
+            name,
+            "close",
+            start_position,
+            -opening_direction_sign,
+        )?;
+        let open_position =
+            self.calibrate_gripper_endpoint(name, "open", closed_position, opening_direction_sign)?;
+
+        let Some(gripper) = self
+            .groups
+            .get_mut(name)
+            .and_then(GroupKind::as_gripper_mut)
+        else {
+            return Ok(());
+        };
+        gripper.set_opening_calibration(closed_position, open_position)
+    }
+
+    fn refresh_gripper_feedback(&mut self, name: &str) -> Result<(), Error> {
+        let (_, initial_sequence) = self.gripper_position_and_sequence(name)?;
+        let deadline = Instant::now() + OPENING_CALIBRATION_REFRESH_TIMEOUT;
+        while Instant::now() < deadline {
+            self.groups
+                .get_mut(name)
+                .and_then(GroupKind::as_gripper_mut)
+                .ok_or_else(|| Error::OpeningCalibrationFailed {
+                    name: name.to_string(),
+                    reason: "group is not a gripper".to_string(),
+                })?
+                .refresh()?;
+            self.tick(OPENING_CALIBRATION_TICK)?;
+            let (position, sequence) = self.gripper_position_and_sequence(name)?;
+            if sequence != initial_sequence {
+                log_calibration_debug(format_args!(
+                    "{name}: fresh pre-calibration feedback position={position:.5}, sequence={sequence}"
+                ));
+                return Ok(());
+            }
+            thread::sleep(Duration::from_millis(1));
+        }
+
+        Err(Error::OpeningCalibrationFailed {
+            name: name.to_string(),
+            reason: "opening calibration did not receive fresh feedback before starting"
+                .to_string(),
+        })
+    }
+
+    fn calibrate_gripper_endpoint(
+        &mut self,
+        name: &str,
+        phase: &str,
+        start_position: f64,
+        raw_direction: f64,
+    ) -> Result<f64, Error> {
+        let target_position = start_position + raw_direction * OPENING_CALIBRATION_TRAVEL_RAD;
+        let mut measured_position = start_position;
+        let mut ticks = 0;
+        let deadline = Instant::now() + OPENING_CALIBRATION_ENDPOINT_DWELL;
+
+        log_calibration_debug(format_args!(
+            "{name}: {phase} phase start={start_position:.5}, target={target_position:.5}, raw_direction={raw_direction:+.1}"
+        ));
+
+        while Instant::now() < deadline {
+            self.groups
+                .get_mut(name)
+                .and_then(GroupKind::as_gripper_mut)
+                .ok_or_else(|| Error::OpeningCalibrationFailed {
+                    name: name.to_string(),
+                    reason: "group is not a gripper".to_string(),
+                })?
+                .opening_calibration_command(target_position)?;
+            self.tick(OPENING_CALIBRATION_TICK)?;
+            measured_position = self.gripper_position(name)?;
+            ticks += 1;
+            thread::sleep(Duration::from_millis(1));
+        }
+
+        log_calibration_debug(format_args!(
+            "{name}: {phase} endpoint_measured={measured_position:.5}, command_target={target_position:.5}, ticks={ticks}, dwell_ms={}",
+            OPENING_CALIBRATION_ENDPOINT_DWELL.as_millis()
+        ));
+        Ok(measured_position)
+    }
+
+    fn gripper_position(&self, name: &str) -> Result<f64, Error> {
+        self.gripper_position_and_sequence(name)
+            .map(|(position, _)| position)
+    }
+
+    fn gripper_position_and_sequence(&self, name: &str) -> Result<(f64, u64), Error> {
+        self.groups
+            .get(name)
+            .and_then(GroupKind::as_gripper)
+            .map(|gripper| (gripper.motor().position(), gripper.motor().state_sequence()))
+            .ok_or_else(|| Error::OpeningCalibrationFailed {
+                name: name.to_string(),
+                reason: "group is not a gripper".to_string(),
+            })
     }
 
     /// Send the disable frame to every motor in every group, in reverse
@@ -193,12 +343,20 @@ impl Robot {
         } else {
             Vec::new()
         };
-        // 2) For each ready bus, drain + decode + collect dispatch tuples.
+        // 2) For each ready bus, plus raw-fd-less buses (mock transports), drain
+        // + decode + collect dispatch tuples.
         let mut dispatches: Vec<(String, usize, motor_codec::Event)> = Vec::new();
-        for token in ready {
-            let Some(bus_name) = self.token_to_bus.get(&token).cloned() else {
-                continue;
-            };
+        let mut readable_bus_names: Vec<String> = ready
+            .into_iter()
+            .filter_map(|token| self.token_to_bus.get(&token).cloned())
+            .collect();
+        readable_bus_names.extend(
+            self.bus_order
+                .iter()
+                .filter(|bus_name| !self.bus_tokens.contains_key(*bus_name))
+                .cloned(),
+        );
+        for bus_name in readable_bus_names {
             let bus_arc = self.buses[&bus_name].clone();
             let mut bus = bus_arc.lock().map_err(|_| Error::BusPoisoned)?;
             let frames = bus.transport.drain_inbound_nonblocking()?;
@@ -228,6 +386,12 @@ impl Robot {
             }
         }
         Ok(())
+    }
+}
+
+fn log_calibration_debug(args: std::fmt::Arguments<'_>) {
+    if std::env::var_os("CAN_MOTOR_CONTROL_CALIBRATION_DEBUG").is_some() {
+        eprintln!("[gripper-calibration] {args}");
     }
 }
 
@@ -265,6 +429,7 @@ struct PendingGroup {
     bus_name: String,
     kind: GroupSpecKind,
     motors: Vec<MotorSpec>,
+    opening: Option<GripperOpeningSpec>,
 }
 
 /// Builder for [`Robot`].
@@ -316,6 +481,7 @@ impl RobotBuilder {
             bus_name: bus_name.into(),
             kind: GroupSpecKind::Arm,
             motors,
+            opening: None,
         });
         self
     }
@@ -333,6 +499,25 @@ impl RobotBuilder {
             bus_name: bus_name.into(),
             kind: GroupSpecKind::Gripper,
             motors: vec![motor],
+            opening: None,
+        });
+        self
+    }
+
+    /// Register a one-motor gripper with normalized opening support.
+    pub fn add_gripper_with_opening(
+        mut self,
+        name: impl Into<String>,
+        bus_name: impl Into<String>,
+        motor: MotorSpec,
+        opening: GripperOpeningSpec,
+    ) -> Self {
+        self.groups.push(PendingGroup {
+            name: name.into(),
+            bus_name: bus_name.into(),
+            kind: GroupSpecKind::Gripper,
+            motors: vec![motor],
+            opening: Some(opening),
         });
         self
     }
@@ -349,6 +534,7 @@ impl RobotBuilder {
             bus_name: bus_name.into(),
             kind: GroupSpecKind::Generic,
             motors,
+            opening: None,
         });
         self
     }
@@ -410,6 +596,17 @@ impl RobotBuilder {
                     got: pending.motors.len(),
                 });
             }
+            if let Some(opening) = pending.opening {
+                if !matches!(pending.kind, GroupSpecKind::Gripper) {
+                    return Err(Error::ConfigSchema(format!(
+                        "group '{}': opening configuration is only valid for grippers",
+                        pending.name
+                    )));
+                }
+                if let Some(current) = opening.default_current {
+                    validate_opening_current(current)?;
+                }
+            }
             // Construct the MotorGroup and attach the bus.
             let motors: Vec<Motor> = pending
                 .motors
@@ -420,7 +617,10 @@ impl RobotBuilder {
             group.attach_bus(bus_arc.clone());
             let kind = match pending.kind {
                 GroupSpecKind::Arm => GroupKind::Arm(Arm(group)),
-                GroupSpecKind::Gripper => GroupKind::Gripper(Gripper(group)),
+                GroupSpecKind::Gripper => match pending.opening {
+                    Some(opening) => GroupKind::Gripper(Gripper::with_opening(group, opening)),
+                    None => GroupKind::Gripper(Gripper::raw(group)),
+                },
                 GroupSpecKind::Generic => GroupKind::Generic(Generic(group)),
             };
             group_order.push(pending.name.clone());
@@ -439,6 +639,14 @@ impl RobotBuilder {
     }
 }
 
+fn validate_opening_current(current: f64) -> Result<(), Error> {
+    if current > 0.0 && current <= 1.0 {
+        Ok(())
+    } else {
+        Err(Error::OpeningCurrentOutOfRange { got: current })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use motor_codec::{
@@ -447,6 +655,7 @@ mod tests {
     };
 
     use super::*;
+    use crate::spec::OpeningDirection;
     use crate::transport::MockCanBus;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -511,6 +720,195 @@ mod tests {
                 q: 1.0,
                 dq: 2.0,
                 tau: 3.0,
+                t_mos: 30,
+                t_rotor: 35,
+            }))
+        }
+    }
+
+    struct FailingCommandCodec;
+    impl MotorCodec for FailingCommandCodec {
+        fn vendor_name(&self) -> &'static str {
+            "failing"
+        }
+        fn supports(&self, t: MotorTypeId) -> bool {
+            matches!(t, MotorTypeId::Damiao(_))
+        }
+        fn limits(&self, _: MotorTypeId) -> Result<Limits, CodecError> {
+            Ok(Limits {
+                p_max: 1.0,
+                v_max: 1.0,
+                t_max: 1.0,
+            })
+        }
+        fn bind_to_bus(&mut self, _: BusCapabilities) {}
+        fn encode_enable(&self, m: MotorRef<'_>) -> Result<CanFrame, CodecError> {
+            CanFrame::classical(m.send_id, &[0xFC])
+                .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
+        }
+        fn encode_disable(&self, m: MotorRef<'_>) -> Result<CanFrame, CodecError> {
+            CanFrame::classical(m.send_id, &[0xFD])
+                .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
+        }
+        fn encode_set_zero(&self, m: MotorRef<'_>) -> Result<CanFrame, CodecError> {
+            CanFrame::classical(m.send_id, &[0xFE])
+                .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
+        }
+        fn encode_command(&self, _: MotorRef<'_>, _: &Command) -> Result<CanFrame, CodecError> {
+            Err(CodecError::DecodeFailed { reason: "command" })
+        }
+        fn encode_refresh(&self, m: MotorRef<'_>) -> Result<Option<CanFrame>, CodecError> {
+            CanFrame::classical(m.recv_id, &[0xCC])
+                .map(Some)
+                .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
+        }
+        fn decode(&self, frame: &CanFrame) -> Result<Option<Event>, CodecError> {
+            Ok(Some(Event::State {
+                motor_id: frame.id,
+                q: 0.0,
+                dq: 0.0,
+                tau: 0.0,
+                t_mos: 30,
+                t_rotor: 35,
+            }))
+        }
+    }
+
+    struct FeedbackCodec {
+        positions: Vec<f64>,
+        decodes: AtomicUsize,
+    }
+    impl FeedbackCodec {
+        fn new(positions: Vec<f64>) -> Self {
+            Self {
+                positions,
+                decodes: AtomicUsize::new(0),
+            }
+        }
+    }
+    impl MotorCodec for FeedbackCodec {
+        fn vendor_name(&self) -> &'static str {
+            "feedback"
+        }
+        fn supports(&self, t: MotorTypeId) -> bool {
+            matches!(t, MotorTypeId::Damiao(_))
+        }
+        fn limits(&self, _: MotorTypeId) -> Result<Limits, CodecError> {
+            Ok(Limits {
+                p_max: 1.0,
+                v_max: 1.0,
+                t_max: 1.0,
+            })
+        }
+        fn bind_to_bus(&mut self, _: BusCapabilities) {}
+        fn encode_enable(&self, m: MotorRef<'_>) -> Result<CanFrame, CodecError> {
+            CanFrame::classical(m.send_id, &[0xFC])
+                .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
+        }
+        fn encode_disable(&self, m: MotorRef<'_>) -> Result<CanFrame, CodecError> {
+            CanFrame::classical(m.send_id, &[0xFD])
+                .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
+        }
+        fn encode_set_zero(&self, m: MotorRef<'_>) -> Result<CanFrame, CodecError> {
+            CanFrame::classical(m.send_id, &[0xFE])
+                .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
+        }
+        fn encode_command(
+            &self,
+            m: MotorRef<'_>,
+            command: &Command,
+        ) -> Result<CanFrame, CodecError> {
+            let id = if matches!(command, Command::PosForce { .. }) {
+                m.recv_id
+            } else {
+                m.send_id
+            };
+            CanFrame::classical(id, &[0x55])
+                .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
+        }
+        fn encode_refresh(&self, m: MotorRef<'_>) -> Result<Option<CanFrame>, CodecError> {
+            CanFrame::classical(m.recv_id, &[0xCC])
+                .map(Some)
+                .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
+        }
+        fn decode(&self, frame: &CanFrame) -> Result<Option<Event>, CodecError> {
+            let idx = self.decodes.fetch_add(1, Ordering::SeqCst);
+            let q = self.positions[idx.min(self.positions.len().saturating_sub(1))];
+            Ok(Some(Event::State {
+                motor_id: frame.id,
+                q,
+                dq: 0.0,
+                tau: 0.0,
+                t_mos: 30,
+                t_rotor: 35,
+            }))
+        }
+    }
+
+    struct EchoFeedbackCodec {
+        position: Mutex<f64>,
+    }
+
+    impl EchoFeedbackCodec {
+        fn new() -> Self {
+            Self {
+                position: Mutex::new(0.0),
+            }
+        }
+    }
+
+    impl MotorCodec for EchoFeedbackCodec {
+        fn vendor_name(&self) -> &'static str {
+            "echo-feedback"
+        }
+        fn supports(&self, t: MotorTypeId) -> bool {
+            matches!(t, MotorTypeId::Damiao(_))
+        }
+        fn limits(&self, _: MotorTypeId) -> Result<Limits, CodecError> {
+            Ok(Limits {
+                p_max: 1.0,
+                v_max: 1.0,
+                t_max: 1.0,
+            })
+        }
+        fn bind_to_bus(&mut self, _: BusCapabilities) {}
+        fn encode_enable(&self, m: MotorRef<'_>) -> Result<CanFrame, CodecError> {
+            CanFrame::classical(m.send_id, &[0xFC])
+                .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
+        }
+        fn encode_disable(&self, m: MotorRef<'_>) -> Result<CanFrame, CodecError> {
+            CanFrame::classical(m.send_id, &[0xFD])
+                .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
+        }
+        fn encode_set_zero(&self, m: MotorRef<'_>) -> Result<CanFrame, CodecError> {
+            CanFrame::classical(m.send_id, &[0xFE])
+                .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
+        }
+        fn encode_command(
+            &self,
+            m: MotorRef<'_>,
+            command: &Command,
+        ) -> Result<CanFrame, CodecError> {
+            if let Command::PosForce { q, .. } = *command {
+                *self.position.lock().unwrap() = q;
+                CanFrame::classical(m.recv_id, &[0x55])
+                    .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
+            } else {
+                CanFrame::classical(m.send_id, &[0x55])
+                    .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
+            }
+        }
+        fn encode_refresh(&self, m: MotorRef<'_>) -> Result<Option<CanFrame>, CodecError> {
+            CanFrame::classical(m.recv_id, &[0xCC])
+                .map(Some)
+                .map_err(|_| CodecError::DecodeFailed { reason: "frame" })
+        }
+        fn decode(&self, frame: &CanFrame) -> Result<Option<Event>, CodecError> {
+            Ok(Some(Event::State {
+                motor_id: frame.id,
+                q: *self.position.lock().unwrap(),
+                dq: 0.0,
+                tau: 0.0,
                 t_mos: 30,
                 t_rotor: 35,
             }))
@@ -685,6 +1083,139 @@ mod tests {
             .build()
             .unwrap();
         assert!(matches!(robot.enable(), Err(Error::NotConnected)));
+    }
+
+    #[test]
+    fn enable_calibrates_configured_gripper_opening() {
+        let mut robot = RobotBuilder::new()
+            .add_bus(
+                "main",
+                Box::new(MockCanBus::new("m")),
+                Box::new(EchoFeedbackCodec::new()),
+            )
+            .add_gripper_with_opening(
+                "g",
+                "main",
+                motor("g0", 0x05, 0x18),
+                GripperOpeningSpec::new(OpeningDirection::IncreasingPosition, Some(0.2)),
+            )
+            .build()
+            .unwrap();
+        robot.connect().unwrap();
+        robot.enable().unwrap();
+        let gripper = robot
+            .group_mut("g")
+            .and_then(|group| group.as_gripper_mut())
+            .unwrap();
+        gripper.set_opening(0.5, None).unwrap();
+    }
+
+    #[test]
+    fn enable_fails_when_measured_feedback_span_is_zero() {
+        let mut robot = RobotBuilder::new()
+            .add_bus(
+                "main",
+                Box::new(MockCanBus::new("m")),
+                Box::new(FeedbackCodec::new(vec![0.0])),
+            )
+            .add_gripper_with_opening(
+                "g",
+                "main",
+                motor("g0", 0x05, 0x18),
+                GripperOpeningSpec::new(OpeningDirection::IncreasingPosition, Some(0.2)),
+            )
+            .build()
+            .unwrap();
+        robot.connect().unwrap();
+        let result = robot.enable();
+        assert!(
+            matches!(
+                result,
+                Err(Error::OpeningCalibrationFailed { ref reason, .. })
+                    if reason.starts_with("calibrated opening span is too small")
+            ),
+            "unexpected result: {result:?}"
+        );
+    }
+
+    #[test]
+    fn enable_fails_when_measured_feedback_span_is_too_small() {
+        let mut robot = RobotBuilder::new()
+            .add_bus(
+                "main",
+                Box::new(MockCanBus::new("m")),
+                Box::new(FeedbackCodec::new(
+                    [0.0]
+                        .into_iter()
+                        .chain([-0.06; 24])
+                        .chain([0.02; 24])
+                        .collect(),
+                )),
+            )
+            .add_gripper_with_opening(
+                "g",
+                "main",
+                motor("g0", 0x05, 0x18),
+                GripperOpeningSpec::new(OpeningDirection::IncreasingPosition, Some(0.2)),
+            )
+            .build()
+            .unwrap();
+        robot.connect().unwrap();
+        let result = robot.enable();
+        assert!(
+            matches!(
+                result,
+                Err(Error::OpeningCalibrationFailed { ref reason, .. })
+                    if reason.starts_with("calibrated opening span is too small")
+            ),
+            "unexpected result: {result:?}"
+        );
+    }
+
+    #[test]
+    fn set_opening_before_enable_calibration_requires_calibration() {
+        let mut robot = RobotBuilder::new()
+            .add_bus(
+                "main",
+                Box::new(MockCanBus::new("m")),
+                Box::new(FeedbackCodec::new(vec![0.0])),
+            )
+            .add_gripper_with_opening(
+                "g",
+                "main",
+                motor("g0", 0x05, 0x18),
+                GripperOpeningSpec::new(OpeningDirection::IncreasingPosition, Some(0.2)),
+            )
+            .build()
+            .unwrap();
+        let gripper = robot
+            .group_mut("g")
+            .and_then(|group| group.as_gripper_mut())
+            .unwrap();
+        assert!(matches!(
+            gripper.set_opening(0.5, None),
+            Err(Error::OpeningCalibrationRequired)
+        ));
+    }
+
+    #[test]
+    fn enable_fails_when_gripper_opening_calibration_command_fails() {
+        let mut robot = RobotBuilder::new()
+            .add_bus(
+                "main",
+                Box::new(MockCanBus::new("m")),
+                Box::new(FailingCommandCodec),
+            )
+            .add_gripper_with_opening(
+                "g",
+                "main",
+                motor("g0", 0x05, 0x18),
+                GripperOpeningSpec::new(OpeningDirection::IncreasingPosition, Some(0.2)),
+            )
+            .build()
+            .unwrap();
+        robot.connect().unwrap();
+        assert!(matches!(robot.enable(), Err(Error::Codec(_))));
     }
 
     #[test]
