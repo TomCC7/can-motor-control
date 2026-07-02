@@ -25,7 +25,7 @@ pub use group::{
 };
 pub use motor::{FaultCode, Motor};
 pub use robot::{Robot, RobotBuilder};
-pub use spec::{GroupSpecKind, MotorSpec};
+pub use spec::{GripperOpeningSpec, GroupSpecKind, MotorSpec, OpeningDirection};
 pub use transport::{
     BusPoller, CanBus, MockCanBus, MockRecordedCall, SocketCanBus, TransportError,
 };

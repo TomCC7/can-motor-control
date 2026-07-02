@@ -4,8 +4,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use can_motor_control::{
-    Arm, CanBus, CodecRegistry, Gripper, GroupKind, MitCmd, PosForceCmd, PosVelCmd, Robot,
-    RobotBuilder, VelCmd,
+    Arm, CanBus, CodecRegistry, Gripper, GripperOpeningSpec, GroupKind, MitCmd, OpeningDirection,
+    PosForceCmd, PosVelCmd, Robot, RobotBuilder, VelCmd,
 };
 use damiao_codec::{parse_motor_type as dm_parse_type, DamiaoCodec, VENDOR_NAME as DAMIAO_VENDOR};
 use motor_codec::{CommandKind, MotorCodec};
@@ -15,7 +15,7 @@ use pyo3::exceptions::{PyKeyError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyAnyMethods, PyList};
 
-use crate::codec::PyDamiaoCodec;
+use crate::codec::{PyDamiaoCodec, PyMockFeedbackCodec};
 use crate::errors::into_pyerr;
 use crate::spec::PyMotorSpec;
 use crate::transport::{PyMockCanBus, PySocketCanBus};
@@ -147,6 +147,39 @@ fn parse_control_mode(s: &str) -> PyResult<CommandKind> {
         other => Err(PyValueError::new_err(format!(
             "unknown control mode {other:?}; expected one of: mit, pos_vel, vel, pos_force"
         ))),
+    }
+}
+
+fn parse_opening_direction(direction: &str) -> PyResult<OpeningDirection> {
+    match direction {
+        "increasing_position" => Ok(OpeningDirection::IncreasingPosition),
+        "decreasing_position" => Ok(OpeningDirection::DecreasingPosition),
+        other => Err(PyValueError::new_err(format!(
+            "unknown opening_direction {other:?}; expected one of: increasing_position, decreasing_position"
+        ))),
+    }
+}
+
+fn opening_spec(
+    direction: Option<&str>,
+    default_current: Option<f64>,
+) -> PyResult<Option<GripperOpeningSpec>> {
+    if let Some(current) = default_current {
+        if current <= 0.0 || current > 1.0 {
+            return Err(PyValueError::new_err(format!(
+                "default_current must be > 0.0 and <= 1.0, got {current}"
+            )));
+        }
+    }
+    match direction {
+        Some(direction) => Ok(Some(GripperOpeningSpec::new(
+            parse_opening_direction(direction)?,
+            default_current,
+        ))),
+        None if default_current.is_some() => Err(PyValueError::new_err(
+            "default_current requires opening_direction",
+        )),
+        None => Ok(None),
     }
 }
 
@@ -542,6 +575,40 @@ impl PyGripper {
         let r = self.robot.bind(py).borrow();
         with_gripper(&r, &self.name, |g| g.set_mode(kind))
     }
+
+    /// Queue a normalized opening command where ``0.0`` is fully closed and
+    /// ``1.0`` is fully open. Opening-enabled grippers are calibrated
+    /// automatically during `Robot.enable`; calling this before calibration
+    /// raises `LifecycleError`. ``current`` is an optional per-unit motor
+    /// current; if omitted, the gripper's configured default opening current is
+    /// used, falling back to the library default when no default was configured.
+    #[pyo3(signature = (opening, *, current = None))]
+    fn set_opening(&self, py: Python<'_>, opening: f64, current: Option<f64>) -> PyResult<()> {
+        let r = self.robot.bind(py).borrow();
+        with_gripper(&r, &self.name, |g| g.set_opening(opening, current))
+    }
+
+    /// Queue a fully-open normalized opening command.
+    ///
+    /// Requires the automatic opening calibration performed by `Robot.enable`.
+    /// ``current`` uses the same configured-default-then-library-default
+    /// fallback as `set_opening` when omitted.
+    #[pyo3(signature = (*, current = None))]
+    fn open(&self, py: Python<'_>, current: Option<f64>) -> PyResult<()> {
+        let r = self.robot.bind(py).borrow();
+        with_gripper(&r, &self.name, |g| g.open(current))
+    }
+
+    /// Queue a fully-closed normalized opening command.
+    ///
+    /// Requires the automatic opening calibration performed by `Robot.enable`.
+    /// ``current`` uses the same configured-default-then-library-default
+    /// fallback as `set_opening` when omitted.
+    #[pyo3(signature = (*, current = None))]
+    fn close(&self, py: Python<'_>, current: Option<f64>) -> PyResult<()> {
+        let r = self.robot.bind(py).borrow();
+        with_gripper(&r, &self.name, |g| g.close(current))
+    }
 }
 
 /// A generic, named group of motors with no arm/gripper semantics.
@@ -573,7 +640,7 @@ impl PyMotorGroup {
 /// Internal RobotBuilder accumulator that holds the Python-friendly handles.
 enum PendingGroup {
     Arm(String, String, Vec<PyMotorSpec>),
-    Gripper(String, String, PyMotorSpec),
+    Gripper(String, String, PyMotorSpec, Option<GripperOpeningSpec>),
     Generic(String, String, Vec<PyMotorSpec>),
 }
 
@@ -604,8 +671,8 @@ impl PyRobotBuilder {
 
     /// Register a named bus from a ``transport`` and a ``codec``.
     ///
-    /// ``transport`` is a `MockCanBus` or `SocketCanBus`
-    /// and ``codec`` is a `can_motor_control.damiao.DamiaoCodec`. Both are
+    /// ``transport`` is a `MockCanBus` or `SocketCanBus`, and ``codec`` is a
+    /// `can_motor_control.damiao.DamiaoCodec` or `MockFeedbackCodec`. Both are
     /// consumed: passing one already added to another bus raises
     /// ``ValueError``. Returns the builder for chaining.
     fn add_bus(
@@ -615,7 +682,8 @@ impl PyRobotBuilder {
         transport: Bound<'_, PyAny>,
         codec: Bound<'_, PyAny>,
     ) -> PyResult<Py<Self>> {
-        // Accept MockCanBus or SocketCanBus for transport; PyDamiaoCodec for codec.
+        // Accept MockCanBus or SocketCanBus for transport; PyDamiaoCodec or
+        // PyMockFeedbackCodec for codec.
         let transport_handle = if let Ok(mock) = transport.extract::<PyRef<'_, PyMockCanBus>>() {
             mock.handle.clone()
         } else if let Ok(sock) = transport.extract::<PyRef<'_, PySocketCanBus>>() {
@@ -627,8 +695,12 @@ impl PyRobotBuilder {
         };
         let codec_handle = if let Ok(dm) = codec.extract::<PyRef<'_, PyDamiaoCodec>>() {
             dm.handle.clone()
+        } else if let Ok(mock) = codec.extract::<PyRef<'_, PyMockFeedbackCodec>>() {
+            mock.handle.clone()
         } else {
-            return Err(PyTypeError::new_err("codec must be DamiaoCodec"));
+            return Err(PyTypeError::new_err(
+                "codec must be DamiaoCodec or MockFeedbackCodec",
+            ));
         };
         let transport = transport_handle
             .take()
@@ -654,21 +726,27 @@ impl PyRobotBuilder {
         slf.into()
     }
 
-    /// Attach a single-motor gripper named ``name`` on bus ``bus``. Returns
-    /// the builder for chaining.
-    #[pyo3(signature = (name, *, bus, motor))]
+    /// Attach a single-motor gripper named ``name`` on bus ``bus``. Optional
+    /// ``opening_direction`` enables normalized opening control, and
+    /// ``default_current`` supplies its default per-unit current. Returns the
+    /// builder for chaining.
+    #[pyo3(signature = (name, *, bus, motor, opening_direction = None, default_current = None))]
     fn add_gripper(
         mut slf: PyRefMut<'_, Self>,
         name: &str,
         bus: &str,
         motor: PyMotorSpec,
-    ) -> Py<Self> {
+        opening_direction: Option<&str>,
+        default_current: Option<f64>,
+    ) -> PyResult<Py<Self>> {
+        let opening = opening_spec(opening_direction, default_current)?;
         slf.groups.push(PendingGroup::Gripper(
             name.to_string(),
             bus.to_string(),
             motor,
+            opening,
         ));
-        slf.into()
+        Ok(slf.into())
     }
 
     /// Attach a generic motor group named ``name`` on bus ``bus`` (no
@@ -702,7 +780,10 @@ impl PyRobotBuilder {
                 PendingGroup::Arm(name, bus, motors) => {
                     builder.add_arm(name, bus, motors.into_iter().map(|s| s.inner).collect())
                 }
-                PendingGroup::Gripper(name, bus, motor) => {
+                PendingGroup::Gripper(name, bus, motor, Some(opening)) => {
+                    builder.add_gripper_with_opening(name, bus, motor.inner, opening)
+                }
+                PendingGroup::Gripper(name, bus, motor, None) => {
                     builder.add_gripper(name, bus, motor.inner)
                 }
                 PendingGroup::Generic(name, bus, motors) => {
@@ -779,6 +860,12 @@ impl PyRobot {
     }
 
     /// Enable every motor on the robot.
+    ///
+    /// For grippers configured for normalized opening control, this also runs
+    /// the feedback-based opening calibration used by `Gripper.set_opening`,
+    /// `Gripper.open`, and `Gripper.close`. If calibration cannot observe enough
+    /// movement or establish a usable span, raises `LifecycleError` and clears
+    /// that gripper's opening calibration.
     ///
     /// Requires the robot to be connected; otherwise raises
     /// `LifecycleError`.

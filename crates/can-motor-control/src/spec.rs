@@ -2,6 +2,44 @@
 
 use motor_codec::MotorTypeId;
 
+/// Whether increasing raw motor position increases or decreases gripper opening.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum OpeningDirection {
+    /// Increasing raw motor position moves the gripper toward fully open.
+    IncreasingPosition,
+    /// Decreasing raw motor position moves the gripper toward fully open.
+    DecreasingPosition,
+}
+
+impl OpeningDirection {
+    /// Sign to apply to a positive opening span in raw motor position units.
+    pub(crate) fn sign(self) -> f64 {
+        match self {
+            Self::IncreasingPosition => 1.0,
+            Self::DecreasingPosition => -1.0,
+        }
+    }
+}
+
+/// Configuration required for normalized gripper opening commands.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct GripperOpeningSpec {
+    /// Opening direction for this gripper mechanism.
+    pub direction: OpeningDirection,
+    /// Default per-unit current used when opening commands omit one.
+    pub default_current: Option<f64>,
+}
+
+impl GripperOpeningSpec {
+    /// Constructor for normalized gripper opening configuration.
+    pub fn new(direction: OpeningDirection, default_current: Option<f64>) -> Self {
+        Self {
+            direction,
+            default_current,
+        }
+    }
+}
+
 /// User-supplied motor specification for the [`crate::RobotBuilder`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct MotorSpec {

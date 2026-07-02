@@ -79,6 +79,33 @@ pub enum Error {
     #[error("not connected; call Robot::connect() first")]
     NotConnected,
 
+    /// Normalized gripper opening was outside the supported range.
+    #[error("gripper opening must be between 0.0 and 1.0, got {got}")]
+    OpeningOutOfRange {
+        /// Caller-supplied opening.
+        got: f64,
+    },
+
+    /// Per-unit opening current was outside the supported range.
+    #[error("gripper opening current must be > 0.0 and <= 1.0, got {got}")]
+    OpeningCurrentOutOfRange {
+        /// Caller-supplied per-unit current.
+        got: f64,
+    },
+
+    /// Normalized opening was requested before session calibration completed.
+    #[error("gripper opening calibration has not completed")]
+    OpeningCalibrationRequired,
+
+    /// Per-session gripper opening calibration failed.
+    #[error("gripper opening calibration failed for '{name}': {reason}")]
+    OpeningCalibrationFailed {
+        /// Gripper group name.
+        name: String,
+        /// Human-readable reason.
+        reason: &'static str,
+    },
+
     /// Builder-style mutation after `connect()`.
     #[error("topology locked after connect()")]
     TopologyLocked,

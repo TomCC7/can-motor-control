@@ -9,6 +9,36 @@ use motor_codec::{Command, CommandKind, Event, MotorRef};
 use crate::bus::Bus;
 use crate::error::Error;
 use crate::motor::Motor;
+use crate::spec::GripperOpeningSpec;
+
+const DEFAULT_OPENING_CURRENT: f64 = 0.15;
+const DEFAULT_OPENING_VELOCITY: f64 = 0.2;
+pub(crate) const OPENING_CALIBRATION_TRAVEL_RAD: f64 = 1.0;
+pub(crate) const OPENING_CALIBRATION_MIN_MOVEMENT_RAD: f64 = 0.01;
+pub(crate) const OPENING_CALIBRATION_MIN_SPAN_RAD: f64 = 0.05;
+pub(crate) const OPENING_CALIBRATION_STALL_EPS_RAD: f64 = 0.001;
+pub(crate) const OPENING_CALIBRATION_STABLE_TICKS: usize = 3;
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub(crate) struct OpeningCalibration {
+    pub(crate) closed_position: f64,
+    pub(crate) open_position: f64,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub(crate) struct OpeningControl {
+    pub(crate) spec: GripperOpeningSpec,
+    pub(crate) calibration: Option<OpeningCalibration>,
+}
+
+impl OpeningControl {
+    fn new(spec: GripperOpeningSpec) -> Self {
+        Self {
+            spec,
+            calibration: None,
+        }
+    }
+}
 
 /// MIT impedance command.
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -401,58 +431,174 @@ impl Arm {
     }
 }
 
-/// One-motor gripper newtype. v1-minimal: single-motor invariant + MIT/PosVel
-/// commands and enable/disable. Reserved future methods (`open`, `close`,
-/// `set_force`, `calibrate`) are deliberately absent.
-pub struct Gripper(pub(crate) MotorGroup);
+/// One-motor gripper newtype with raw motor commands and optional normalized
+/// opening support.
+pub struct Gripper {
+    pub(crate) group: MotorGroup,
+    pub(crate) opening: Option<OpeningControl>,
+}
 
 impl Gripper {
+    pub(crate) fn raw(group: MotorGroup) -> Self {
+        Self {
+            group,
+            opening: None,
+        }
+    }
+
+    pub(crate) fn with_opening(group: MotorGroup, spec: GripperOpeningSpec) -> Self {
+        Self {
+            group,
+            opening: Some(OpeningControl::new(spec)),
+        }
+    }
+
     /// The one motor.
     pub fn motor(&self) -> &Motor {
-        self.0.motor_at(0).expect("gripper invariant")
+        self.group.motor_at(0).expect("gripper invariant")
     }
     /// The one motor (mutably).
     pub fn motor_mut(&mut self) -> &mut Motor {
         let i = 0;
-        &mut self.0.motors[i]
+        &mut self.group.motors[i]
     }
 
     /// Enable the motor.
     pub fn enable(&mut self) -> Result<(), Error> {
-        self.0.enable_all()
+        self.group.enable_all()
     }
     /// Disable the motor.
     pub fn disable(&mut self) -> Result<(), Error> {
-        self.0.disable_all()
+        self.group.disable_all()
     }
     /// Single MIT command to the gripper motor.
     pub fn mit_control(&mut self, cmd: MitCmd) -> Result<(), Error> {
-        self.0.send_command(0, cmd.into())
+        self.group.send_command(0, cmd.into())
     }
     /// Single PosVel command to the gripper motor.
     pub fn pos_vel_control(&mut self, cmd: PosVelCmd) -> Result<(), Error> {
-        self.0.send_command(0, cmd.into())
+        self.group.send_command(0, cmd.into())
     }
     /// Single PosForce command to the gripper motor.
     pub fn pos_force_control(&mut self, cmd: PosForceCmd) -> Result<(), Error> {
-        self.0.send_command(0, cmd.into())
+        self.group.send_command(0, cmd.into())
     }
     /// Send a state-refresh query to the motor (no motion). Pair with `tick`.
     pub fn refresh(&mut self) -> Result<(), Error> {
-        self.0.refresh_all()
+        self.group.refresh_all()
     }
     /// Set the gripper motor's persistent control mode (no motion).
     pub fn set_mode(&mut self, mode: CommandKind) -> Result<(), Error> {
-        self.0.set_mode(mode)
+        self.group.set_mode(mode)
+    }
+
+    /// True if this gripper is configured for normalized opening control.
+    pub fn has_opening_control(&self) -> bool {
+        self.opening.is_some()
+    }
+
+    pub(crate) fn opening_direction_sign(&self) -> Option<f64> {
+        self.opening.map(|opening| opening.spec.direction.sign())
+    }
+
+    pub(crate) fn clear_opening_calibration(&mut self) {
+        if let Some(opening) = self.opening.as_mut() {
+            opening.calibration = None;
+        }
+    }
+
+    pub(crate) fn set_opening_calibration(
+        &mut self,
+        closed_position: f64,
+        open_position: f64,
+    ) -> Result<(), Error> {
+        let span = (open_position - closed_position).abs();
+        if span < OPENING_CALIBRATION_MIN_SPAN_RAD {
+            return Err(Error::OpeningCalibrationFailed {
+                name: self.group.name().to_string(),
+                reason: "calibrated opening span is too small",
+            });
+        }
+        let Some(opening) = self.opening.as_mut() else {
+            return Ok(());
+        };
+        opening.calibration = Some(OpeningCalibration {
+            closed_position,
+            open_position,
+        });
+        Ok(())
+    }
+
+    pub(crate) fn opening_calibration_command(&mut self, raw_direction: f64) -> Result<(), Error> {
+        let current = self.opening_current(None)?;
+        let q = self.motor().position() + raw_direction * OPENING_CALIBRATION_TRAVEL_RAD;
+        self.set_mode(CommandKind::PosForce)?;
+        self.pos_force_control(PosForceCmd {
+            q,
+            dq: DEFAULT_OPENING_VELOCITY,
+            i_pu: current,
+        })
+    }
+
+    /// Queue a normalized opening command where 0.0 is closed and 1.0 is open.
+    pub fn set_opening(&mut self, opening: f64, current: Option<f64>) -> Result<(), Error> {
+        let q = self.opening_position(opening)?;
+        let i_pu = self.opening_current(current)?;
+        self.pos_force_control(PosForceCmd {
+            q,
+            dq: DEFAULT_OPENING_VELOCITY,
+            i_pu,
+        })
+    }
+
+    pub(crate) fn opening_position(&self, opening: f64) -> Result<f64, Error> {
+        if !(0.0..=1.0).contains(&opening) {
+            return Err(Error::OpeningOutOfRange { got: opening });
+        }
+        let Some(control) = self.opening else {
+            return Err(Error::OpeningCalibrationRequired);
+        };
+        let Some(calibration) = control.calibration else {
+            return Err(Error::OpeningCalibrationRequired);
+        };
+        Ok(calibration.closed_position
+            + opening * (calibration.open_position - calibration.closed_position))
+    }
+
+    pub(crate) fn opening_current(&self, current: Option<f64>) -> Result<f64, Error> {
+        let configured = self
+            .opening
+            .and_then(|control| control.spec.default_current);
+        let i_pu = current.or(configured).unwrap_or(DEFAULT_OPENING_CURRENT);
+        validate_opening_current(i_pu)?;
+        Ok(i_pu)
+    }
+
+    /// Queue a fully-open command.
+    pub fn open(&mut self, current: Option<f64>) -> Result<(), Error> {
+        self.set_opening(1.0, current)
+    }
+
+    /// Queue a fully-closed command.
+    pub fn close(&mut self, current: Option<f64>) -> Result<(), Error> {
+        self.set_opening(0.0, current)
     }
 
     /// Borrow the underlying [`MotorGroup`].
     pub fn inner(&self) -> &MotorGroup {
-        &self.0
+        &self.group
     }
     /// Borrow the underlying [`MotorGroup`] mutably.
     pub fn inner_mut(&mut self) -> &mut MotorGroup {
-        &mut self.0
+        &mut self.group
+    }
+}
+
+fn validate_opening_current(current: f64) -> Result<(), Error> {
+    if current > 0.0 && current <= 1.0 {
+        Ok(())
+    } else {
+        Err(Error::OpeningCurrentOutOfRange { got: current })
     }
 }
 
@@ -603,6 +749,7 @@ mod tests {
     use motor_codec::MotorTypeId;
 
     use super::*;
+    use crate::spec::{GripperOpeningSpec, OpeningDirection};
 
     fn make_group(name: &str, bus: &str, motor_names: &[&str]) -> MotorGroup {
         let motors: Vec<_> = motor_names
@@ -620,6 +767,18 @@ mod tests {
         MotorGroup::new(name.into(), bus.into(), motors)
     }
 
+    fn opening_gripper(direction: OpeningDirection, default_current: Option<f64>) -> Gripper {
+        let mut gripper = Gripper::with_opening(
+            make_group("grip", "main", &["g"]),
+            GripperOpeningSpec::new(direction, default_current),
+        );
+        gripper.opening.as_mut().unwrap().calibration = Some(OpeningCalibration {
+            closed_position: 2.0,
+            open_position: 4.0,
+        });
+        gripper
+    }
+
     #[test]
     fn name_and_index_access_agree() {
         let g = make_group("arm", "main", &["j0", "j1", "j2"]);
@@ -633,6 +792,65 @@ mod tests {
         let g = make_group("arm", "left", &["j0"]);
         assert_eq!(g.bus_name(), "left");
         assert_eq!(g.name(), "arm");
+    }
+
+    #[test]
+    fn opening_position_maps_closed_mid_open() {
+        let gripper = opening_gripper(OpeningDirection::IncreasingPosition, Some(0.25));
+        assert_eq!(gripper.opening_position(0.0).unwrap(), 2.0);
+        assert_eq!(gripper.opening_position(0.5).unwrap(), 3.0);
+        assert_eq!(gripper.opening_position(1.0).unwrap(), 4.0);
+    }
+
+    #[test]
+    fn opening_position_supports_decreasing_direction_calibration() {
+        let mut gripper = opening_gripper(OpeningDirection::DecreasingPosition, Some(0.25));
+        gripper.opening.as_mut().unwrap().calibration = Some(OpeningCalibration {
+            closed_position: 4.0,
+            open_position: 2.0,
+        });
+        assert_eq!(gripper.opening_position(0.0).unwrap(), 4.0);
+        assert_eq!(gripper.opening_position(0.5).unwrap(), 3.0);
+        assert_eq!(gripper.opening_position(1.0).unwrap(), 2.0);
+    }
+
+    #[test]
+    fn opening_rejects_out_of_range_values() {
+        let gripper = opening_gripper(OpeningDirection::IncreasingPosition, None);
+        assert!(matches!(
+            gripper.opening_position(-0.1),
+            Err(Error::OpeningOutOfRange { .. })
+        ));
+        assert!(matches!(
+            gripper.opening_position(1.1),
+            Err(Error::OpeningOutOfRange { .. })
+        ));
+    }
+
+    #[test]
+    fn opening_current_precedence_is_per_call_then_config_then_library_default() {
+        let configured = opening_gripper(OpeningDirection::IncreasingPosition, Some(0.25));
+        assert_eq!(configured.opening_current(None).unwrap(), 0.25);
+        assert_eq!(configured.opening_current(Some(0.4)).unwrap(), 0.4);
+
+        let fallback = opening_gripper(OpeningDirection::IncreasingPosition, None);
+        assert_eq!(
+            fallback.opening_current(None).unwrap(),
+            DEFAULT_OPENING_CURRENT
+        );
+    }
+
+    #[test]
+    fn opening_current_rejects_invalid_values() {
+        let gripper = opening_gripper(OpeningDirection::IncreasingPosition, None);
+        assert!(matches!(
+            gripper.opening_current(Some(0.0)),
+            Err(Error::OpeningCurrentOutOfRange { .. })
+        ));
+        assert!(matches!(
+            gripper.opening_current(Some(1.1)),
+            Err(Error::OpeningCurrentOutOfRange { .. })
+        ));
     }
 
     #[test]

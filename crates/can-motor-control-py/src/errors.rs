@@ -1,6 +1,7 @@
 //! Mapping from `can_motor_control::Error` (and friends) to Python exception types.
 
 use can_motor_control::{CodecError, Error, TransportError};
+use pyo3::exceptions::PyValueError;
 use pyo3::PyErr;
 
 /// Convert a `can_motor_control::Error` into the appropriate Python exception.
@@ -11,7 +12,13 @@ pub fn into_pyerr(err: Error) -> PyErr {
         Error::Codec(c) => crate::CodecError::new_err(c.to_string()),
         Error::ConfigSchema(_) | Error::ConfigIo(_) => crate::ConfigError::new_err(msg),
         Error::UnknownVendor(_) | Error::UnknownBusName(_) => crate::ConfigError::new_err(msg),
-        Error::NotConnected | Error::TopologyLocked => crate::LifecycleError::new_err(msg),
+        Error::OpeningOutOfRange { .. } | Error::OpeningCurrentOutOfRange { .. } => {
+            PyValueError::new_err(msg)
+        }
+        Error::NotConnected
+        | Error::TopologyLocked
+        | Error::OpeningCalibrationRequired
+        | Error::OpeningCalibrationFailed { .. } => crate::LifecycleError::new_err(msg),
         _ => crate::DmError::new_err(msg),
     }
 }

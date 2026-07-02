@@ -56,7 +56,8 @@ setup for later releases.
   See `docs/can-fd.md`.
 - Damiao codec only. The trait surface accommodates additional vendors; see
   `docs/multi-vendor.md`.
-- Gripper exposes only `mit_control` / `pos_vel_control` / enable / disable
-  in v1. `open` / `close` / `set_force` / `calibrate` reserved for a
-  follow-up change.
+- Gripper exposes normalized opening control (`set_opening`, `open`, `close`)
+  when configured with opening direction, plus raw `mit_control` /
+  `pos_vel_control` / `pos_force_control` / refresh / mode methods for bring-up.
+  Physical force calibration is reserved for a follow-up change.
 - Sync API only; no async runtime.

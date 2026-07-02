@@ -30,6 +30,27 @@ def make_robot() -> can_motor_control.Robot:
     return builder.build()
 
 
+def make_gripper_robot() -> can_motor_control.Robot:
+    builder = (
+        can_motor_control.RobotBuilder()
+        .add_bus(
+            "main",
+            can_motor_control.MockCanBus("vcan_mock"),
+            can_motor_control.MockFeedbackCodec(0x18),
+        )
+        .add_gripper(
+            "grip",
+            bus="main",
+            motor=can_motor_control.MotorSpec(
+                "g", MotorType.DM4310, send_id=0x08, recv_id=0x18
+            ),
+            opening_direction="increasing_position",
+            default_current=0.2,
+        )
+    )
+    return builder.build()
+
+
 def test_imports():
     assert can_motor_control.Robot is not None
     assert can_motor_control.RobotBuilder is not None
@@ -119,6 +140,44 @@ def test_getitem_returns_arm_wrapper():
         pass
     else:
         raise AssertionError("expected KeyError")
+
+
+def test_getitem_returns_gripper_wrapper():
+    robot = make_gripper_robot()
+    gripper = robot["grip"]
+    assert isinstance(gripper, can_motor_control.Gripper)
+    assert gripper.motor.name == "g"
+
+
+def test_gripper_opening_requires_calibration():
+    robot = make_gripper_robot()
+    gripper = robot["grip"]
+    try:
+        gripper.set_opening(0.5)
+    except can_motor_control.LifecycleError as e:
+        assert "calibration" in str(e).lower()
+    else:
+        raise AssertionError("expected LifecycleError")
+
+
+def test_gripper_opening_rejects_out_of_range():
+    robot = make_gripper_robot()
+    gripper = robot["grip"]
+    try:
+        gripper.set_opening(1.1)
+    except ValueError as e:
+        assert "between 0.0 and 1.0" in str(e)
+    else:
+        raise AssertionError("expected ValueError")
+
+
+def test_gripper_open_close_after_enable():
+    robot = make_gripper_robot()
+    with robot:
+        gripper = robot["grip"]
+        gripper.open()
+        gripper.set_opening(0.5, current=0.3)
+        gripper.close(current=0.25)
 
 
 def test_attribute_access_not_supported():

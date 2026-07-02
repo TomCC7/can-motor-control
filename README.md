@@ -70,7 +70,8 @@ that real hardware will respond correctly.
 | `02_read_single_motor.py`              | --                     | enable + live refresh-poll + disable | one powered motor |
 | `03_single_motor_mit_hold.py`          | `03_single_motor_mit_hold` | bounded MIT hold   | one powered motor             |
 | `04_single_motor_control_modes.py`     | --                     | one bounded mode/run   | one powered motor             |
-| `05_gripper_control.py`                | `05_gripper_control`   | gripper PosForce sequence, MIT, or PosVel | one gripper motor |
+| `05_gripper_opening_control.py`        | `05_gripper_opening_control` | normalized gripper opening (`open`, `set_opening`, `close`) | one gripper motor |
+| `05_gripper_control.py`                | `05_gripper_control`   | raw gripper PosForce sequence, MIT, or PosVel | one gripper motor |
 | `06_read_openarm_motor.py`             | --                     | live OpenArm zero-torque reader | configured OpenArm single arm |
 
 Each example prints its assumptions before sending anything and disables
