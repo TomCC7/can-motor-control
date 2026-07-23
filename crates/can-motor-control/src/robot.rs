@@ -177,21 +177,20 @@ impl Robot {
                 .get(name)
                 .and_then(GroupKind::as_gripper)
                 .is_some_and(Gripper::has_opening_control);
-            if has_opening_control {
-                if self
+            if has_opening_control
+                && self
                     .groups
                     .get(name)
                     .expect("group order invariant")
                     .inner()
                     .bus_vendor()
                     .map(|vendor| vendor != "damiao")?
-                {
-                    self.groups
-                        .get_mut(name)
-                        .and_then(GroupKind::as_gripper_mut)
-                        .expect("checked gripper kind")
-                        .set_mode(CommandKind::PosForce)?;
-                }
+            {
+                self.groups
+                    .get_mut(name)
+                    .and_then(GroupKind::as_gripper_mut)
+                    .expect("checked gripper kind")
+                    .set_mode(CommandKind::PosForce)?;
             }
             if let Some(g) = self.groups.get_mut(name) {
                 g.enable_all()?;
