@@ -31,6 +31,7 @@ struct Shared {
 /// straight back from `drain_inbound_nonblocking`), or via
 /// [`MockCanBus::pair`] for an A↔B loopback (frames sent on A appear on B's
 /// inbound and vice-versa).
+#[derive(Clone)]
 pub struct MockCanBus {
     name: String,
     caps: BusCapabilities,

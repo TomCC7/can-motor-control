@@ -21,6 +21,9 @@ const OPENING_CALIBRATION_ENDPOINT_DWELL: Duration = Duration::from_millis(100);
 const OPENING_CALIBRATION_ENDPOINT_DWELL: Duration = Duration::from_millis(1500);
 const OPENING_CALIBRATION_TICK: Duration = Duration::from_millis(10);
 const OPENING_CALIBRATION_REFRESH_TIMEOUT: Duration = Duration::from_millis(250);
+const OPENING_MODE_VERIFY_TIMEOUT: Duration = Duration::from_millis(50);
+const OPENING_MODE_VERIFY_TICK: Duration = Duration::from_millis(5);
+const OPENING_MODE_SETTLE: Duration = Duration::from_millis(2);
 
 /// A configured robot: named buses + named groups + lifecycle state.
 pub struct Robot {
@@ -135,6 +138,39 @@ impl Robot {
         if !self.connected {
             return Err(Error::NotConnected);
         }
+        let opening_names: Vec<String> = self
+            .group_order
+            .iter()
+            .filter(|name| {
+                self.groups
+                    .get(*name)
+                    .and_then(GroupKind::as_gripper)
+                    .is_some_and(Gripper::has_opening_control)
+            })
+            .cloned()
+            .collect();
+
+        // Damiao's mode write is send-only. Verify every opening-control motor
+        // before enabling any group, so a bad mode cannot reach calibration.
+        for name in &opening_names {
+            let is_damiao = self
+                .groups
+                .get(name)
+                .expect("group order invariant")
+                .inner()
+                .bus_vendor()
+                .map(|vendor| vendor == "damiao")?;
+            if is_damiao {
+                self.groups
+                    .get_mut(name)
+                    .and_then(GroupKind::as_gripper_mut)
+                    .expect("opening gripper invariant")
+                    .set_mode(CommandKind::PosForce)?;
+                thread::sleep(OPENING_MODE_SETTLE);
+                self.verify_opening_mode(name)?;
+            }
+        }
+
         for name in &self.group_order.clone() {
             let has_opening_control = self
                 .groups
@@ -142,11 +178,20 @@ impl Robot {
                 .and_then(GroupKind::as_gripper)
                 .is_some_and(Gripper::has_opening_control);
             if has_opening_control {
-                self.groups
-                    .get_mut(name)
-                    .and_then(GroupKind::as_gripper_mut)
-                    .expect("checked gripper kind")
-                    .set_mode(CommandKind::PosForce)?;
+                if self
+                    .groups
+                    .get(name)
+                    .expect("group order invariant")
+                    .inner()
+                    .bus_vendor()
+                    .map(|vendor| vendor != "damiao")?
+                {
+                    self.groups
+                        .get_mut(name)
+                        .and_then(GroupKind::as_gripper_mut)
+                        .expect("checked gripper kind")
+                        .set_mode(CommandKind::PosForce)?;
+                }
             }
             if let Some(g) = self.groups.get_mut(name) {
                 g.enable_all()?;
@@ -164,6 +209,42 @@ impl Robot {
             }
         }
         Ok(())
+    }
+
+    fn verify_opening_mode(&mut self, name: &str) -> Result<(), Error> {
+        let (send_id, recv_id) = self
+            .groups
+            .get_mut(name)
+            .and_then(GroupKind::as_gripper_mut)
+            .expect("opening gripper invariant")
+            .inner_mut()
+            .send_control_mode_readback()?
+            .ok_or_else(|| Error::OpeningControlModeVerificationFailed {
+                name: name.to_string(),
+                reason: "codec does not support CTRL_MODE read-back".to_string(),
+            })?;
+        let deadline = Instant::now() + OPENING_MODE_VERIFY_TIMEOUT;
+        while Instant::now() < deadline {
+            if let Some(value) = self.tick_for_mode(name, send_id, recv_id)? {
+                if value == 4 {
+                    return Ok(());
+                }
+                return Err(Error::OpeningControlModeVerificationFailed {
+                    name: name.to_string(),
+                    reason: format!("CTRL_MODE read-back was {value}, expected 4"),
+                });
+            }
+            self.groups
+                .get_mut(name)
+                .and_then(GroupKind::as_gripper_mut)
+                .expect("opening gripper invariant")
+                .inner_mut()
+                .send_control_mode_readback()?;
+        }
+        Err(Error::OpeningControlModeVerificationFailed {
+            name: name.to_string(),
+            reason: "CTRL_MODE read-back timed out".to_string(),
+        })
     }
 
     fn calibrate_gripper_opening(&mut self, name: &str) -> Result<(), Error> {
@@ -248,6 +329,7 @@ impl Robot {
         ));
 
         while Instant::now() < deadline {
+            let iteration_start = Instant::now();
             self.groups
                 .get_mut(name)
                 .and_then(GroupKind::as_gripper_mut)
@@ -259,7 +341,7 @@ impl Robot {
             self.tick(OPENING_CALIBRATION_TICK)?;
             measured_position = self.gripper_position(name)?;
             ticks += 1;
-            thread::sleep(Duration::from_millis(1));
+            thread::sleep(OPENING_CALIBRATION_TICK.saturating_sub(iteration_start.elapsed()));
         }
 
         log_calibration_debug(format_args!(
@@ -334,9 +416,28 @@ impl Robot {
     /// decode each frame exactly once, dispatch the resulting events to the
     /// owning groups via per-bus routing tables.
     pub fn tick(&mut self, deadline: Duration) -> Result<(), Error> {
+        self.tick_internal(deadline, None).map(|_| ())
+    }
+
+    fn tick_for_mode(
+        &mut self,
+        name: &str,
+        send_id: u32,
+        recv_id: u32,
+    ) -> Result<Option<u32>, Error> {
+        self.tick_internal(OPENING_MODE_VERIFY_TICK, Some((name, send_id, recv_id)))
+    }
+
+    fn tick_internal(
+        &mut self,
+        deadline: Duration,
+        mode_target: Option<(&str, u32, u32)>,
+    ) -> Result<Option<u32>, Error> {
         if !self.connected {
             return Err(Error::NotConnected);
         }
+        let mode_target =
+            mode_target.map(|(name, send_id, recv_id)| (name.to_string(), send_id, recv_id));
         // 1) Wait for any registered fd to become readable (or the deadline).
         let ready = if let Some(p) = self.poller.as_mut() {
             p.wait(deadline)?
@@ -346,6 +447,7 @@ impl Robot {
         // 2) For each ready bus, plus raw-fd-less buses (mock transports), drain
         // + decode + collect dispatch tuples.
         let mut dispatches: Vec<(String, usize, motor_codec::Event)> = Vec::new();
+        let mut mode_value = None;
         let mut readable_bus_names: Vec<String> = ready
             .into_iter()
             .filter_map(|token| self.token_to_bus.get(&token).cloned())
@@ -361,6 +463,25 @@ impl Robot {
             let mut bus = bus_arc.lock().map_err(|_| Error::BusPoisoned)?;
             let frames = bus.transport.drain_inbound_nonblocking()?;
             for frame in &frames {
+                if let Some((ref target_name, send_id, recv_id)) = mode_target {
+                    if frame.id == recv_id {
+                        let group = self.groups.get(target_name).expect("group order invariant");
+                        let motor = &group.inner().motors()[0];
+                        let m_ref = motor_codec::MotorRef {
+                            motor_type: motor.motor_type(),
+                            send_id,
+                            recv_id,
+                            name: motor.name(),
+                        };
+                        mode_value = bus
+                            .codec
+                            .decode_control_mode_readback(frame, m_ref)
+                            .map_err(Error::Codec)?;
+                        if mode_value.is_some() {
+                            continue;
+                        }
+                    }
+                }
                 let decoded = bus.codec.decode(frame).map_err(Error::Codec)?;
                 if let Some(event) = decoded {
                     let motor_id = match event {
@@ -385,7 +506,7 @@ impl Robot {
                 g.apply_event(motor_index, &event);
             }
         }
-        Ok(())
+        Ok(mode_value)
     }
 }
 
@@ -915,6 +1036,97 @@ mod tests {
         }
     }
 
+    /// Deterministic lifecycle seam: loopback frames are enough to exercise
+    /// ordering, while the mode reply can be selected by each test.
+    struct ModeLifecycleCodec {
+        reply: Option<u32>,
+        position: Mutex<f64>,
+    }
+
+    impl MotorCodec for ModeLifecycleCodec {
+        fn vendor_name(&self) -> &'static str {
+            "damiao"
+        }
+        fn supports(&self, t: MotorTypeId) -> bool {
+            matches!(t, MotorTypeId::Damiao(_))
+        }
+        fn limits(&self, _: MotorTypeId) -> Result<Limits, CodecError> {
+            Ok(Limits {
+                p_max: 10.0,
+                v_max: 10.0,
+                t_max: 10.0,
+            })
+        }
+        fn bind_to_bus(&mut self, _: BusCapabilities) {}
+        fn encode_enable(&self, m: MotorRef<'_>) -> Result<CanFrame, CodecError> {
+            Ok(CanFrame::classical(m.send_id, &[0xfc]).unwrap())
+        }
+        fn encode_disable(&self, m: MotorRef<'_>) -> Result<CanFrame, CodecError> {
+            Ok(CanFrame::classical(m.send_id, &[0xfd]).unwrap())
+        }
+        fn encode_set_zero(&self, m: MotorRef<'_>) -> Result<CanFrame, CodecError> {
+            Ok(CanFrame::classical(m.send_id, &[0xfe]).unwrap())
+        }
+        fn encode_command(&self, m: MotorRef<'_>, cmd: &Command) -> Result<CanFrame, CodecError> {
+            let marker = if let Command::PosForce { q, .. } = cmd {
+                *self.position.lock().unwrap() = *q;
+                0x55
+            } else {
+                0x01
+            };
+            Ok(CanFrame::classical(m.recv_id, &[marker]).unwrap())
+        }
+        fn encode_refresh(&self, m: MotorRef<'_>) -> Result<Option<CanFrame>, CodecError> {
+            Ok(Some(CanFrame::classical(m.recv_id, &[0xcc]).unwrap()))
+        }
+        fn encode_set_mode(
+            &self,
+            m: MotorRef<'_>,
+            _: CommandKind,
+        ) -> Result<Option<CanFrame>, CodecError> {
+            Ok(Some(CanFrame::classical(m.send_id, &[0x10]).unwrap()))
+        }
+        fn encode_control_mode_readback(
+            &self,
+            m: MotorRef<'_>,
+        ) -> Result<Option<CanFrame>, CodecError> {
+            let id = if self.reply.is_some() {
+                m.recv_id
+            } else {
+                0x7ff
+            };
+            let mut payload = [0u8; 8];
+            payload[0] = (m.send_id & 0xff) as u8;
+            payload[2] = 0x20;
+            payload[3] = self.reply.unwrap_or(0) as u8;
+            Ok(Some(CanFrame::classical(id, &payload).unwrap()))
+        }
+        fn decode_control_mode_readback(
+            &self,
+            frame: &CanFrame,
+            _: MotorRef<'_>,
+        ) -> Result<Option<u32>, CodecError> {
+            if frame.payload()[2] == 0x20 {
+                Ok(Some(frame.payload()[3] as u32))
+            } else {
+                Ok(None)
+            }
+        }
+        fn decode(&self, frame: &CanFrame) -> Result<Option<Event>, CodecError> {
+            if frame.payload()[0] == 0x20 || frame.payload()[0] == 0x10 || frame.id == 0x7ff {
+                return Ok(None);
+            }
+            Ok(Some(Event::State {
+                motor_id: frame.id,
+                q: *self.position.lock().unwrap(),
+                dq: 0.0,
+                tau: 0.0,
+                t_mos: 20,
+                t_rotor: 20,
+            }))
+        }
+    }
+
     fn motor(name: &str, send: u32, recv: u32) -> MotorSpec {
         MotorSpec::new(name, MotorTypeId::Damiao(3), send, recv)
     }
@@ -1108,6 +1320,91 @@ mod tests {
             .and_then(|group| group.as_gripper_mut())
             .unwrap();
         gripper.set_opening(0.5, None).unwrap();
+    }
+
+    fn lifecycle_robot(reply: Option<u32>) -> (Robot, MockCanBus) {
+        let mock = MockCanBus::new("m");
+        let inspector = mock.clone();
+        let mut robot = RobotBuilder::new()
+            .add_bus(
+                "main",
+                Box::new(mock),
+                Box::new(ModeLifecycleCodec {
+                    reply,
+                    position: Mutex::new(0.0),
+                }),
+            )
+            .add_gripper_with_opening(
+                "g",
+                "main",
+                motor("g0", 0x05, 0x18),
+                GripperOpeningSpec::new(OpeningDirection::IncreasingPosition, Some(0.2)),
+            )
+            .build()
+            .unwrap();
+        robot.connect().unwrap();
+        (robot, inspector)
+    }
+
+    #[test]
+    fn damiao_opening_lifecycle_orders_write_readback_enable_then_calibration() {
+        let (mut robot, bus) = lifecycle_robot(Some(4));
+        robot.enable().unwrap();
+        let markers: Vec<u8> = bus
+            .sent_frames()
+            .iter()
+            .map(|f| {
+                if f.len >= 4 && f.payload()[2] == 0x20 {
+                    0x20
+                } else {
+                    f.payload()[0]
+                }
+            })
+            .collect();
+        assert_eq!(&markers[..4], &[0x10, 0x20, 0xfc, 0xcc]);
+        assert!(markers.iter().skip(3).any(|marker| *marker == 0x55));
+    }
+
+    #[test]
+    fn non_four_mode_readback_stops_before_enable_or_calibration() {
+        let (mut robot, bus) = lifecycle_robot(Some(3));
+        assert!(matches!(
+            robot.enable(),
+            Err(Error::OpeningControlModeVerificationFailed { .. })
+        ));
+        let markers: Vec<u8> = bus
+            .sent_frames()
+            .iter()
+            .map(|f| {
+                if f.len >= 4 && f.payload()[2] == 0x20 {
+                    0x20
+                } else {
+                    f.payload()[0]
+                }
+            })
+            .collect();
+        assert!(markers.iter().all(|m| *m != 0xfc && *m != 0x55));
+    }
+
+    #[test]
+    fn mode_readback_timeout_stops_before_enable_or_calibration() {
+        let (mut robot, bus) = lifecycle_robot(None);
+        assert!(matches!(
+            robot.enable(),
+            Err(Error::OpeningControlModeVerificationFailed { .. })
+        ));
+        let markers: Vec<u8> = bus
+            .sent_frames()
+            .iter()
+            .map(|f| {
+                if f.len >= 4 && f.payload()[2] == 0x20 {
+                    0x20
+                } else {
+                    f.payload()[0]
+                }
+            })
+            .collect();
+        assert!(markers.iter().all(|m| *m != 0xfc && *m != 0x55));
     }
 
     #[test]

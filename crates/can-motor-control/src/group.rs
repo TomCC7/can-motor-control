@@ -13,7 +13,7 @@ use crate::spec::GripperOpeningSpec;
 
 const DEFAULT_OPENING_CURRENT: f64 = 0.15;
 const DEFAULT_OPENING_VELOCITY: f64 = 10.0;
-pub(crate) const OPENING_CALIBRATION_TRAVEL_RAD: f64 = 2.0;
+pub(crate) const OPENING_CALIBRATION_TRAVEL_RAD: f64 = 4.0;
 pub(crate) const OPENING_CALIBRATION_MIN_SPAN_RAD: f64 = 0.1;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -210,6 +210,36 @@ impl MotorGroup {
             .encode_command(m_ref, &cmd)
             .map_err(Error::Codec)?;
         bus.transport.send(&frame).map_err(Error::Transport)
+    }
+
+    pub(crate) fn bus_vendor(&self) -> Result<&'static str, Error> {
+        let bus = self.bus_arc()?;
+        let bus = bus.lock().map_err(|_| Error::BusPoisoned)?;
+        Ok(bus.codec.vendor_name())
+    }
+
+    pub(crate) fn send_control_mode_readback(&mut self) -> Result<Option<(u32, u32)>, Error> {
+        let motor = self
+            .motors
+            .first()
+            .ok_or(Error::Internal("gripper has no motor"))?;
+        let m_ref = MotorRef {
+            motor_type: motor.motor_type(),
+            send_id: motor.send_id(),
+            recv_id: motor.recv_id(),
+            name: motor.name(),
+        };
+        let bus_arc = self.bus_arc()?;
+        let mut bus = bus_arc.lock().map_err(|_| Error::BusPoisoned)?;
+        let Some(frame) = bus
+            .codec
+            .encode_control_mode_readback(m_ref)
+            .map_err(Error::Codec)?
+        else {
+            return Ok(None);
+        };
+        bus.transport.send(&frame).map_err(Error::Transport)?;
+        Ok(Some((motor.send_id(), motor.recv_id())))
     }
 
     pub(crate) fn batch_send_commands(&mut self, cmds: &[Command]) -> Result<(), Error> {

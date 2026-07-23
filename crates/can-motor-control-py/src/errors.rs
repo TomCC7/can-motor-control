@@ -18,7 +18,8 @@ pub fn into_pyerr(err: Error) -> PyErr {
         Error::NotConnected
         | Error::TopologyLocked
         | Error::OpeningCalibrationRequired
-        | Error::OpeningCalibrationFailed { .. } => crate::LifecycleError::new_err(msg),
+        | Error::OpeningCalibrationFailed { .. }
+        | Error::OpeningControlModeVerificationFailed { .. } => crate::LifecycleError::new_err(msg),
         _ => crate::DmError::new_err(msg),
     }
 }

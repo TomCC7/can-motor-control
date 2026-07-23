@@ -106,6 +106,10 @@ pub enum Error {
         reason: String,
     },
 
+    /// Damiao opening-control mode could not be verified before enable.
+    #[error("opening-control mode verification failed for '{name}': {reason}")]
+    OpeningControlModeVerificationFailed { name: String, reason: String },
+
     /// Builder-style mutation after `connect()`.
     #[error("topology locked after connect()")]
     TopologyLocked,

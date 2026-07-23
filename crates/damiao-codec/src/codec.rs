@@ -176,6 +176,34 @@ impl MotorCodec for DamiaoCodec {
         )))
     }
 
+    fn encode_control_mode_readback(
+        &self,
+        motor: MotorRef<'_>,
+    ) -> Result<Option<CanFrame>, CodecError> {
+        Ok(Some(crate::DamiaoCodecExt::encode_read_param(
+            self,
+            motor,
+            crate::DamiaoRid::CTRL_MODE,
+        )))
+    }
+
+    fn decode_control_mode_readback(
+        &self,
+        frame: &CanFrame,
+        motor: MotorRef<'_>,
+    ) -> Result<Option<u32>, CodecError> {
+        if frame.len != 8 {
+            return Ok(None);
+        }
+        let p = frame.payload();
+        let send_id = u16::from_le_bytes([p[0], p[1]]) as u32;
+        if send_id != motor.send_id || p[2] != 0x33 || p[3] != u8::from(crate::DamiaoRid::CTRL_MODE)
+        {
+            return Ok(None);
+        }
+        Ok(Some(u32::from_le_bytes([p[4], p[5], p[6], p[7]])))
+    }
+
     fn decode(&self, frame: &CanFrame) -> Result<Option<Event>, CodecError> {
         // Damiao state responses come on the recv_id assigned to the motor, with
         // the response command in the top nibble of byte 0.
@@ -185,6 +213,11 @@ impl MotorCodec for DamiaoCodec {
             return Ok(None);
         }
         if frame.flags.contains(FrameFlags::REMOTE_REQUEST) {
+            return Ok(None);
+        }
+        // Parameter traffic is not a state frame. In particular, a 0x55 write
+        // acknowledgement must never update motor state.
+        if frame.id == 0x7FF || (frame.payload()[2] == 0x33 || frame.payload()[2] == 0x55) {
             return Ok(None);
         }
         if frame.len != 8 {
@@ -572,6 +605,35 @@ mod tests {
         assert_eq!(p[2], 0x55); // write-param command
         assert_eq!(p[3], 10); // CTRL_MODE register
         assert_eq!(&p[4..8], &1u32.to_le_bytes()); // MIT == 1
+    }
+
+    #[test]
+    fn ctrl_mode_readback_is_contextual_and_not_state() {
+        let c = DamiaoCodec::new();
+        let m = ref_motor("g", DamiaoMotorType::DM4310, 0x05, 0x18);
+        let query = c.encode_control_mode_readback(m).unwrap().unwrap();
+        assert_eq!(query.id, 0x7FF);
+        assert_eq!(&query.payload()[0..4], &[0x05, 0x00, 0x33, 0x0A]);
+
+        let mut response = [0u8; 8];
+        response[0..2].copy_from_slice(&0x05u16.to_le_bytes());
+        response[2] = 0x33;
+        response[3] = 0x0A;
+        response[4..8].copy_from_slice(&4u32.to_le_bytes());
+        let response = CanFrame::classical(0x18, &response).unwrap();
+        assert_eq!(
+            c.decode_control_mode_readback(&response, m).unwrap(),
+            Some(4)
+        );
+        assert!(c.decode(&response).unwrap().is_none());
+
+        let wrong_send = CanFrame::classical(0x18, &[0x06, 0, 0x33, 0x0A, 4, 0, 0, 0]).unwrap();
+        assert_eq!(
+            c.decode_control_mode_readback(&wrong_send, m).unwrap(),
+            None
+        );
+        let write_ack = CanFrame::classical(0x18, &[0x05, 0, 0x55, 0x0A, 4, 0, 0, 0]).unwrap();
+        assert_eq!(c.decode_control_mode_readback(&write_ack, m).unwrap(), None);
     }
 
     extern crate alloc;

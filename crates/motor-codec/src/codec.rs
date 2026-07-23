@@ -79,6 +79,25 @@ pub trait MotorCodec: Send + Sync {
         Ok(None)
     }
 
+    /// Encode a private control-mode read-back query, when supported.
+    fn encode_control_mode_readback(
+        &self,
+        motor: MotorRef<'_>,
+    ) -> Result<Option<CanFrame>, CodecError> {
+        let _ = motor;
+        Ok(None)
+    }
+
+    /// Decode a private control-mode read-back response for `motor`.
+    fn decode_control_mode_readback(
+        &self,
+        frame: &CanFrame,
+        motor: MotorRef<'_>,
+    ) -> Result<Option<u32>, CodecError> {
+        let _ = (frame, motor);
+        Ok(None)
+    }
+
     /// Decode an inbound frame.
     ///
     /// Returns `Ok(Some(event))` for a recognized inbound message,
