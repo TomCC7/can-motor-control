@@ -72,7 +72,7 @@ that real hardware will respond correctly.
 | `04_single_motor_control_modes.py`     | --                     | one bounded mode/run   | one powered motor             |
 | `05_gripper_opening_control.py`        | `05_gripper_opening_control` | normalized gripper opening (`open`, `set_opening`, `close`) | one gripper motor |
 | `05_gripper_control.py`                | `05_gripper_control`   | raw gripper PosForce sequence, MIT, or PosVel | one gripper motor |
-| `06_read_openarm_motor.py`             | --                     | live OpenArm zero-torque reader | configured OpenArm single arm |
+| `06_read_robot_motor.py`               | --                     | live OpenArm/OpenYam zero-torque reader | configured OpenArm or OpenYam single arm |
 
 Each example prints its assumptions before sending anything and disables
 on exit. Durations are hard-capped; live readers accept `--mock` for API-shape
