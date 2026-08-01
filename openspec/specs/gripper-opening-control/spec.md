@@ -110,6 +110,21 @@ The system SHALL preserve existing raw gripper controls for hardware bring-up an
 - **WHEN** a caller invokes the existing raw `pos_force_control` gripper method
 - **THEN** the system accepts the command using the existing raw motor-oriented semantics
 
+### Requirement: Calibrated opening feedback is readable as a normalized value
+The system SHALL expose the latest cached gripper feedback in the same normalized coordinate system as opening commands, where `0.0` is fully closed and `1.0` is fully open. The read SHALL use the signed calibrated span so both increasing- and decreasing-position grippers map correctly, and SHALL clamp successful results to the inclusive `[0.0, 1.0]` range. Reading opening feedback SHALL NOT send CAN frames.
+
+#### Scenario: Read normalized opening feedback
+- **WHEN** a caller refreshes the gripper, advances `Robot.tick()`, and reads opening feedback after successful calibration
+- **THEN** the system maps the most recently cached motor position through the session's calibrated closed and open endpoints
+
+#### Scenario: Clamp endpoint overshoot
+- **WHEN** cached motor feedback lies slightly beyond either calibrated endpoint
+- **THEN** the normalized opening read returns `0.0` or `1.0` rather than a value outside the public normalized range
+
+#### Scenario: Reject opening feedback before calibration
+- **WHEN** a caller reads normalized opening feedback on a gripper without configured opening control or before session calibration completes
+- **THEN** the system returns an opening-calibration-required lifecycle error
+
 ### Requirement: Normalized gripper examples are provided in Rust and Python
 The project SHALL provide Rust and Python examples that demonstrate normalized gripper opening control as the primary user-facing gripper workflow.
 

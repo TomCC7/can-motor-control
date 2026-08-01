@@ -219,6 +219,24 @@ fn with_gripper<R>(
     f(gr).map_err(into_pyerr)
 }
 
+fn with_gripper_ref<R>(
+    robot: &PyRobot,
+    group_name: &str,
+    f: impl FnOnce(&Gripper) -> Result<R, can_motor_control::Error>,
+) -> PyResult<R> {
+    let inner = robot
+        .inner
+        .lock()
+        .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("robot mutex poisoned"))?;
+    let g = inner
+        .group(group_name)
+        .ok_or_else(|| PyKeyError::new_err(group_name.to_string()))?;
+    let gr = g
+        .as_gripper()
+        .ok_or_else(|| PyTypeError::new_err(format!("group '{group_name}' is not a gripper")))?;
+    f(gr).map_err(into_pyerr)
+}
+
 /// A named group of motors driven together as an arm.
 ///
 /// Obtained by indexing a `Robot` by group name (``robot["arm"]``).
@@ -515,6 +533,19 @@ impl PyGripper {
             group_name: self.name.clone(),
             motor_index: 0,
         })
+    }
+
+    /// Normalized opening from feedback received by the most recent
+    /// `Robot.tick`, where ``0.0`` is fully closed and ``1.0`` is fully open.
+    ///
+    /// Call `Gripper.refresh` followed by `Robot.tick` before reading when
+    /// fresh feedback is required. The automatic opening calibration performed
+    /// by `Robot.enable` must have completed, otherwise this property raises
+    /// `LifecycleError`. Reading the property does not send CAN frames.
+    #[getter]
+    fn opening(&self, py: Python<'_>) -> PyResult<f64> {
+        let r = self.robot.bind(py).borrow();
+        with_gripper_ref(&r, &self.name, |g| g.opening())
     }
 
     /// Enable the gripper motor (queued for the next tick).
