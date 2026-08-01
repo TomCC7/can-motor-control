@@ -578,6 +578,25 @@ impl Gripper {
         })
     }
 
+    /// Return the normalized opening from the most recently cached motor feedback.
+    ///
+    /// `0.0` is fully closed and `1.0` is fully open. Call [`Self::refresh`]
+    /// followed by [`crate::Robot::tick`] before reading when fresh feedback is
+    /// required. Opening control must be configured and the per-session
+    /// calibration performed by [`crate::Robot::enable`] must have completed.
+    /// This getter only reads cached state and does not send CAN frames.
+    pub fn opening(&self) -> Result<f64, Error> {
+        let Some(control) = self.opening else {
+            return Err(Error::OpeningCalibrationRequired);
+        };
+        let Some(calibration) = control.calibration else {
+            return Err(Error::OpeningCalibrationRequired);
+        };
+        let opening = (self.motor().position() - calibration.closed_position)
+            / (calibration.open_position - calibration.closed_position);
+        Ok(opening.clamp(0.0, 1.0))
+    }
+
     pub(crate) fn opening_position(&self, opening: f64) -> Result<f64, Error> {
         if !(0.0..=1.0).contains(&opening) {
             return Err(Error::OpeningOutOfRange { got: opening });
@@ -839,6 +858,69 @@ mod tests {
         assert_eq!(gripper.opening_position(0.0).unwrap(), 4.0);
         assert_eq!(gripper.opening_position(0.5).unwrap(), 3.0);
         assert_eq!(gripper.opening_position(1.0).unwrap(), 2.0);
+    }
+
+    fn set_feedback_position(gripper: &mut Gripper, position: f64) {
+        gripper.group.apply_event(
+            0,
+            &Event::State {
+                motor_id: 0x11,
+                q: position,
+                dq: 0.0,
+                tau: 0.0,
+                t_mos: 30,
+                t_rotor: 35,
+            },
+        );
+    }
+
+    #[test]
+    fn opening_maps_cached_closed_mid_and_open_feedback() {
+        let mut gripper = opening_gripper(OpeningDirection::IncreasingPosition, None);
+        for (position, expected) in [(2.0, 0.0), (3.0, 0.5), (4.0, 1.0)] {
+            set_feedback_position(&mut gripper, position);
+            assert_eq!(gripper.opening().unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn opening_supports_decreasing_position_calibration() {
+        let mut gripper = opening_gripper(OpeningDirection::DecreasingPosition, None);
+        gripper.opening.as_mut().unwrap().calibration = Some(OpeningCalibration {
+            closed_position: 4.0,
+            open_position: 2.0,
+        });
+        for (position, expected) in [(4.0, 0.0), (3.0, 0.5), (2.0, 1.0)] {
+            set_feedback_position(&mut gripper, position);
+            assert_eq!(gripper.opening().unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn opening_clamps_feedback_beyond_calibrated_endpoints() {
+        let mut gripper = opening_gripper(OpeningDirection::IncreasingPosition, None);
+        set_feedback_position(&mut gripper, 1.99);
+        assert_eq!(gripper.opening().unwrap(), 0.0);
+        set_feedback_position(&mut gripper, 4.01);
+        assert_eq!(gripper.opening().unwrap(), 1.0);
+    }
+
+    #[test]
+    fn opening_requires_configured_and_completed_calibration() {
+        let raw = Gripper::raw(make_group("grip", "main", &["g"]));
+        assert!(matches!(
+            raw.opening(),
+            Err(Error::OpeningCalibrationRequired)
+        ));
+
+        let uncalibrated = Gripper::with_opening(
+            make_group("grip", "main", &["g"]),
+            GripperOpeningSpec::new(OpeningDirection::IncreasingPosition, None),
+        );
+        assert!(matches!(
+            uncalibrated.opening(),
+            Err(Error::OpeningCalibrationRequired)
+        ));
     }
 
     #[test]

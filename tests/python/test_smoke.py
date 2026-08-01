@@ -160,6 +160,17 @@ def test_gripper_opening_requires_calibration():
         raise AssertionError("expected LifecycleError")
 
 
+def test_gripper_opening_read_requires_calibration():
+    robot = make_gripper_robot()
+    gripper = robot["grip"]
+    try:
+        _ = gripper.opening
+    except can_motor_control.LifecycleError as e:
+        assert "calibration" in str(e).lower()
+    else:
+        raise AssertionError("expected LifecycleError")
+
+
 def test_gripper_opening_rejects_out_of_range():
     robot = make_gripper_robot()
     gripper = robot["grip"]
@@ -178,6 +189,31 @@ def test_gripper_open_close_after_enable():
         gripper.open()
         gripper.set_opening(0.5, current=0.3)
         gripper.close(current=0.25)
+
+
+def test_gripper_opening_reads_latest_normalized_feedback():
+    robot = make_gripper_robot()
+    with robot:
+        gripper = robot["grip"]
+        gripper.set_opening(0.5)
+        gripper.refresh()
+        robot.tick(1_000)
+        assert abs(gripper.opening - 0.5) < 1e-9
+
+        try:
+            gripper.opening = 0.25
+        except AttributeError:
+            pass
+        else:
+            raise AssertionError("expected read-only opening property")
+
+
+def test_gripper_stub_declares_read_only_float_opening_property():
+    stub = can_motor_control.__file__.replace("__init__.py", "__init__.pyi")
+    with open(stub, encoding="utf-8") as f:
+        source = f.read()
+    gripper_stub = source.split("class Gripper:", 1)[1].split("class MotorGroup:", 1)[0]
+    assert "@property\n    def opening(self) -> float: ..." in gripper_stub
 
 
 def test_attribute_access_not_supported():
