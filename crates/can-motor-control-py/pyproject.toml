@@ -27,5 +27,6 @@ docs = [
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
+locked = true
 module-name = "can_motor_control._native"
 python-source = "python"

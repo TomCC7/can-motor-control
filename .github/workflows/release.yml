@@ -67,11 +67,11 @@ jobs:
         working-directory: crates/can-motor-control-py
         run: |
           rm -rf ../../target/wheels
-          maturin build --release --strip --locked --compatibility pypi
+          maturin build --release --strip --compatibility pypi
       - name: Build sdist on Linux
         if: matrix.platform == 'linux'
         working-directory: crates/can-motor-control-py
-        run: maturin sdist --locked
+        run: maturin sdist
       - name: Validate wheel in a clean environment
         run: |
           wheel=$(find target/wheels -name 'can_motor_control-*.whl' -print -quit)

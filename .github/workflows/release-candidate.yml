@@ -100,11 +100,11 @@ jobs:
         working-directory: crates/can-motor-control-py
         run: |
           rm -rf ../../target/wheels
-          maturin build --release --strip --locked --compatibility pypi
+          maturin build --release --strip --compatibility pypi
       - name: Build sdist on Linux
         if: matrix.platform == 'linux'
         working-directory: crates/can-motor-control-py
-        run: maturin sdist --locked
+        run: maturin sdist
       - name: Install wheel into a clean venv
         run: |
           python -m venv /tmp/venv
