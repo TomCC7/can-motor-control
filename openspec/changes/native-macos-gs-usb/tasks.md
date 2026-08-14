@@ -52,7 +52,7 @@
 - [x] 6.1 Update crate-root and transport exports, descriptions, docs, config handling, examples, and tests so Linux builds use only `SocketCanBus` and macOS builds use only `GsUsbBus`
 - [x] 6.2 Add Rust API documentation for device selectors, send acceptance, initialization deadline, platform availability, failure behavior, statistics, and ownership-driven cleanup
 - [x] 6.3 Run Linux workspace tests and Clippy across all targets to prove SocketCAN and MockCanBus behavior remains unchanged
-- [ ] 6.4 Run macOS workspace build, tests, and Clippy across all compatible targets to prove no Linux CAN constants or exports leak into macOS
+- [x] 6.4 Run macOS workspace build, tests, and Clippy across all compatible targets to prove no Linux CAN constants or exports leak into macOS
 
 ## 7. Python API and Ownership
 
