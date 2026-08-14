@@ -24,6 +24,7 @@ libc = "0.2"
 pyo3 = { version = "0.22", features = ["extension-module", "abi3-py310"] }
 numpy = "0.22"
 log = "0.4"
+nusb = "=0.2.5"
 
 motor-codec = { path = "crates/motor-codec", package = "can-motor-codec", version = "0.1.0", default-features = false }
 damiao-codec = { path = "crates/damiao-codec", package = "can-motor-damiao-codec", version = "0.1.0", default-features = false }

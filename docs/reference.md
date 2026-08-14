@@ -38,6 +38,9 @@ docstrings authored in the Rust PyO3 source, so it matches exactly what
 
 ::: can_motor_control.SocketCanBus
 
+`SocketCanBus` is present on Linux. macOS builds replace it with `GsUsbBus`;
+see [Native macOS gs_usb](gs-usb-macos.md) for its constructor and counters.
+
 ## Damiao codec
 
 ::: can_motor_control.damiao.DamiaoCodec

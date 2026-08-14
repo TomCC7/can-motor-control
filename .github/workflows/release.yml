@@ -24,8 +24,15 @@ env:
 
 jobs:
   build_python_distributions:
-    name: Build Python distributions
-    runs-on: ubuntu-latest
+    name: Build Python distributions (${{ matrix.platform }})
+    strategy:
+      matrix:
+        include:
+          - platform: linux
+            os: ubuntu-latest
+          - platform: macos-arm64
+            os: macos-14
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -33,6 +40,9 @@ jobs:
         with:
           python-version: "3.10"
       - uses: Swatinem/rust-cache@v2
+      - name: Assert macOS arm64 runner
+        if: matrix.platform == 'macos-arm64'
+        run: test "$(uname -m)" = arm64
       - name: Install Python build tools
         run: |
           python -m pip install --upgrade pip
@@ -53,15 +63,25 @@ jobs:
           text = text.replace('dynamic = ["version"]', f'version = "{version}"')
           pyproject.write_text(text)
           PY
-      - name: Build wheel and sdist
+      - name: Build wheel
         working-directory: crates/can-motor-control-py
         run: |
           rm -rf ../../target/wheels
-          maturin build --release --strip --locked --compatibility pypi --sdist
+          maturin build --release --strip --locked --compatibility pypi
+      - name: Build sdist on Linux
+        if: matrix.platform == 'linux'
+        working-directory: crates/can-motor-control-py
+        run: maturin sdist --locked
+      - name: Validate wheel in a clean environment
+        run: |
+          wheel=$(find target/wheels -name 'can_motor_control-*.whl' -print -quit)
+          python -m venv /tmp/can-motor-control-release
+          /tmp/can-motor-control-release/bin/pip install numpy "$wheel"
+          /tmp/can-motor-control-release/bin/python -c "import can_motor_control as c, sys; native = 'GsUsbBus' if sys.platform == 'darwin' else 'SocketCanBus'; absent = 'SocketCanBus' if sys.platform == 'darwin' else 'GsUsbBus'; assert hasattr(c, native); assert not hasattr(c, absent)"
       - name: Upload Python distributions
         uses: actions/upload-artifact@v7
         with:
-          name: python-distributions
+          name: python-distributions-${{ matrix.platform }}
           path: target/wheels/can_motor_control-*
           if-no-files-found: error
 
@@ -80,8 +100,9 @@ jobs:
       - name: Download Python distributions
         uses: actions/download-artifact@v5
         with:
-          name: python-distributions
+          pattern: python-distributions-*
           path: dist
+          merge-multiple: true
       - name: Publish Python distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:

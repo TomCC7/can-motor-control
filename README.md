@@ -4,7 +4,7 @@ Rust control library for Damiao-family CAN motors, with first-class Python bindi
 
 ## Status
 
-v0.1.0 (in development) — walking-skeleton scope: single arm end-to-end over Linux SocketCAN. CAN-FD is supported (classical CAN remains the default); see [`docs/can-fd.md`](./docs/can-fd.md). The architecture accommodates future vendors (Robostride, MyActuator, CubeMars). Only the Damiao codec ships in v1, and it emits classical 8-byte frames on either bus type.
+v0.1.0 (in development) — single-arm control over Linux SocketCAN or native macOS gs_usb. Linux supports CAN-FD; macOS gs_usb supports classical CAN. See [`docs/can-fd.md`](./docs/can-fd.md) and [`docs/gs-usb-macos.md`](./docs/gs-usb-macos.md).
 
 ## Why
 
@@ -46,7 +46,7 @@ pip install target/wheels/can_motor_control-*.whl
 crates/
   motor-codec/          # no_std, package can-motor-codec, import motor_codec
   damiao-codec/         # no_std, package can-motor-damiao-codec, import damiao_codec
-  can-motor-control/       # std, transport (SocketCAN) + Robot/Group/Motor + builder
+  can-motor-control/       # std, native transport + Robot/Group/Motor + builder
   can-motor-control-py/    # PyO3 bindings, built by maturin
 configs/            # example TOML robot configs
 examples/           # Python hardware bring-up ladder (00_-06_) + Rust example
@@ -78,8 +78,9 @@ Each example prints its assumptions before sending anything and disables
 on exit. Durations are hard-capped; live readers accept `--mock` for API-shape
 checks, but mock execution does not validate hardware.
 
-For first-time setup of a Linux SocketCAN interface, see
-[`docs/socketcan-setup.md`](./docs/socketcan-setup.md).
+For Linux setup, see [`docs/socketcan-setup.md`](./docs/socketcan-setup.md). For
+macOS adapter selection and diagnostics, see
+[`docs/gs-usb-macos.md`](./docs/gs-usb-macos.md).
 Run Rust examples with `cargo run -p can-motor-control --example <Rust example> -- ...`.
 
 ## Documentation
@@ -120,7 +121,14 @@ The architecture, every requirement, and the implementation plan live under [`op
 
 ## Platforms
 
-Linux only in v1 (SocketCAN is a Linux kernel feature). The codec crates compile cross-platform; macOS / Windows users can run unit tests against `MockCanBus`.
+| Target | Hardware transport | Scope |
+| --- | --- | --- |
+| Linux | `SocketCanBus` | Classical CAN and CAN-FD |
+| macOS | `GsUsbBus` | gs_usb channel 0, classical CAN |
+
+Each build exports only its native hardware transport. Both export
+`MockCanBus`. The macOS wheel uses IOKit through Rust `nusb`; it requires no
+Homebrew libusb, PyUSB, or Python gs_usb package.
 
 ## License
 

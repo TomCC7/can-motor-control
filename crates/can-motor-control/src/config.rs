@@ -9,7 +9,11 @@ use serde::Deserialize;
 use crate::error::Error;
 use crate::robot::{Robot, RobotBuilder};
 use crate::spec::{GripperOpeningSpec, MotorSpec, OpeningDirection};
-use crate::transport::{CanBus, SocketCanBus};
+use crate::transport::CanBus;
+#[cfg(target_os = "linux")]
+use crate::transport::SocketCanBus;
+#[cfg(target_os = "macos")]
+use crate::transport::{GsUsbBus, GsUsbConfig};
 
 /// Factory function that produces a vendor codec on demand.
 pub type CodecFactory = Box<dyn Fn() -> Box<dyn MotorCodec> + Send + Sync>;
@@ -86,6 +90,12 @@ struct BusConfig {
     interface: Option<String>,
     #[serde(default)]
     fd: bool,
+    vendor_id: Option<u16>,
+    product_id: Option<u16>,
+    serial_number: Option<String>,
+    index: Option<usize>,
+    bitrate: Option<u32>,
+    initialization_timeout_seconds: Option<f64>,
     vendor: String,
 }
 
@@ -133,7 +143,8 @@ impl Robot {
     pub fn from_config_str(toml_text: &str, registry: &CodecRegistry) -> Result<Self, Error> {
         let cfg: RobotConfig = toml::from_str(toml_text)
             .map_err(|e| Error::ConfigSchema(format!("parse error: {e}")))?;
-        // A bus's `fd = true` opens that bus in CAN-FD mode (see SocketCanBus::open).
+        // On Linux, `fd = true` opens SocketCAN in CAN-FD mode. The native
+        // macOS gs_usb transport is classical-CAN only.
         // 1) Detect vendor-on-group with a helpful error.
         for g in &cfg.group {
             if let Some(_v) = &g.vendor {
@@ -158,6 +169,7 @@ impl Robot {
         bus_entries.sort_by(|a, b| a.0.cmp(&b.0));
         for (bus_name, bus_cfg) in bus_entries {
             let transport: Box<dyn CanBus> = match bus_cfg.kind.as_str() {
+                #[cfg(target_os = "linux")]
                 "socketcan" => {
                     let iface = bus_cfg.interface.ok_or_else(|| {
                         Error::ConfigSchema(format!(
@@ -166,9 +178,43 @@ impl Robot {
                     })?;
                     Box::new(SocketCanBus::open(&iface, bus_cfg.fd)?)
                 }
+                #[cfg(target_os = "macos")]
+                "gs_usb" => {
+                    if bus_cfg.interface.is_some() || bus_cfg.fd {
+                        return Err(Error::ConfigSchema(format!(
+                            "bus '{bus_name}': gs_usb does not accept SocketCAN interface/fd fields"
+                        )));
+                    }
+                    let vendor_id = bus_cfg.vendor_id.ok_or_else(|| {
+                        Error::ConfigSchema(format!(
+                            "bus '{bus_name}': gs_usb requires 'vendor_id'"
+                        ))
+                    })?;
+                    let product_id = bus_cfg.product_id.ok_or_else(|| {
+                        Error::ConfigSchema(format!(
+                            "bus '{bus_name}': gs_usb requires 'product_id'"
+                        ))
+                    })?;
+                    let mut config = GsUsbConfig::new(vendor_id, product_id);
+                    config.serial_number = bus_cfg.serial_number;
+                    config.index = bus_cfg.index;
+                    if let Some(bitrate) = bus_cfg.bitrate {
+                        config.bitrate = bitrate;
+                    }
+                    if let Some(seconds) = bus_cfg.initialization_timeout_seconds {
+                        if !seconds.is_finite() || seconds <= 0.0 {
+                            return Err(Error::ConfigSchema(format!(
+                                "bus '{bus_name}': initialization_timeout_seconds must be finite and > 0"
+                            )));
+                        }
+                        config.initialization_timeout = std::time::Duration::from_secs_f64(seconds);
+                    }
+                    Box::new(GsUsbBus::open(config)?)
+                }
                 other => {
                     return Err(Error::ConfigSchema(format!(
-                        "bus '{bus_name}': unsupported kind '{other}' (v1 supports only 'socketcan')"
+                        "bus '{bus_name}': unsupported transport kind '{other}' on {}",
+                        std::env::consts::OS
                     )));
                 }
             };

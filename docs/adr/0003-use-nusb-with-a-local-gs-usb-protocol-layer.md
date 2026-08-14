@@ -1,0 +1,3 @@
+# Use nusb with a local gs_usb protocol layer
+
+The macOS transport depends directly on `nusb` and implements only the classical gs_usb requests and frame layouts it needs. The available Rust `gs_usb` crate was rejected because it uses `rusb`/libusb, hardcodes endpoint addresses, performs blocking bulk I/O, hides transfer ownership, and uses hardcoded clock tables that exclude observed 170 MHz hardware. Keeping the narrow device protocol local preserves descriptor-driven endpoints, capability-derived timing, and single-worker ownership while delegating USB discovery and transfer mechanics to `nusb`.

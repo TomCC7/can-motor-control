@@ -66,13 +66,14 @@ def _resolve(MotorType, name: str, type_str: str):
 
 def build_robot(args: argparse.Namespace):
     import can_motor_control
+    from _native_transport import open_native_transport
     from can_motor_control.damiao import DamiaoCodec, MotorType
 
     arm_layout = ROBOT_LAYOUTS[args.robot]
     transport = (
         can_motor_control.MockCanBus.new_fd("vcan_mock") if args.mock and args.fd
         else can_motor_control.MockCanBus("vcan_mock") if args.mock
-        else can_motor_control.SocketCanBus(args.interface, fd=args.fd)
+        else open_native_transport(args.interface, fd=args.fd)
     )
     arm_specs = [
         can_motor_control.MotorSpec(name, _resolve(MotorType, name, type_str), send_id, recv_id)

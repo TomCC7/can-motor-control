@@ -1,5 +1,7 @@
 //! Integration tests for the TOML config loader.
 
+#![cfg(target_os = "linux")]
+
 use can_motor_control::{CodecRegistry, Error, Robot};
 use damiao_codec::{parse_motor_type, DamiaoCodec, VENDOR_NAME};
 

@@ -92,9 +92,10 @@ def main() -> int:
     )
 
     import can_motor_control
+    from _native_transport import open_native_transport
     from can_motor_control.damiao import DamiaoCodec
 
-    transport = can_motor_control.SocketCanBus(args.interface, fd=args.fd)
+    transport = open_native_transport(args.interface, fd=args.fd)
     robot = (
         can_motor_control.RobotBuilder()
         .add_bus("main", transport, DamiaoCodec())

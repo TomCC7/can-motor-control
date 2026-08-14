@@ -1,13 +1,13 @@
 //! Linux SocketCAN transport.
 //!
 //! Built directly on libc syscalls: `socket(PF_CAN, SOCK_RAW, CAN_RAW)`,
-//! `ioctl(SIOCGIFINDEX)`, `bind`, non-blocking via `fcntl`. Avoids the
+//! `if_nametoindex`, `bind`, non-blocking via `fcntl`. Avoids the
 //! `socketcan` crate so we own the FD-vs-classical decode path without
 //! upstream coupling.
 
 use std::ffi::CString;
 use std::io;
-use std::mem::{size_of, zeroed};
+use std::mem::size_of;
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
 
 use motor_codec::{BusCapabilities, CanFrame, FrameFlags};
@@ -19,7 +19,6 @@ use super::{CanBus, TransportError};
 const AF_CAN: libc::c_int = 29;
 const PF_CAN: libc::c_int = AF_CAN;
 const CAN_RAW: libc::c_int = 1;
-const SIOCGIFINDEX: libc::c_ulong = 0x8933;
 
 // setsockopt level/option for enabling CAN-FD reception on a raw CAN socket.
 // `SOL_CAN_RAW` = `SOL_CAN_BASE (100)` + `CAN_RAW (1)`; `CAN_RAW_FD_FRAMES` = 5.
@@ -71,12 +70,6 @@ struct SockaddrCan {
     tx_id: u32,
 }
 
-#[repr(C)]
-struct Ifreq {
-    name: [u8; libc::IFNAMSIZ],
-    index_or_other: [u8; 24],
-}
-
 /// Linux SocketCAN bus.
 pub struct SocketCanBus {
     name: String,
@@ -96,9 +89,8 @@ impl SocketCanBus {
             return Err(TransportError::InterfaceNotFound(interface.to_string()));
         }
 
-        // Resolve interface index BEFORE creating the socket so we can return
-        // InterfaceNotFound without leaking an open fd. We use a probe socket
-        // for the ioctl (it doesn't need to be CAN-specific to do SIOCGIFINDEX).
+        // Resolve the interface index before creating the CAN socket so a
+        // missing interface cannot leak an open descriptor.
         let ifindex = resolve_ifindex(interface)?;
 
         // SAFETY: socket() with valid family/type/protocol; returns -1 on error.
@@ -207,39 +199,23 @@ impl SocketCanBus {
 }
 
 fn resolve_ifindex(interface: &str) -> Result<i32, TransportError> {
-    // Open a temporary AF_INET/SOCK_DGRAM socket for the ioctl.
-    // SAFETY: socket() with valid args.
-    let probe_fd = unsafe { libc::socket(libc::AF_INET, libc::SOCK_DGRAM, 0) };
-    if probe_fd < 0 {
-        return Err(TransportError::Io(io::Error::last_os_error()));
-    }
-    // SAFETY: take ownership so it's auto-closed.
-    let _probe_owned = unsafe { OwnedFd::from_raw_fd(probe_fd) };
-
     let cname = CString::new(interface)
         .map_err(|_| TransportError::InterfaceNotFound(interface.to_string()))?;
-    let cname_bytes = cname.as_bytes_with_nul();
-    if cname_bytes.len() > libc::IFNAMSIZ {
+    if cname.as_bytes_with_nul().len() > libc::IFNAMSIZ {
         return Err(TransportError::InterfaceNotFound(interface.to_string()));
     }
 
-    // SAFETY: zeroed Ifreq is valid for all fields.
-    let mut req: Ifreq = unsafe { zeroed() };
-    req.name[..cname_bytes.len()].copy_from_slice(cname_bytes);
-
-    // SAFETY: ioctl with SIOCGIFINDEX expects a writable ifreq.
-    let rc = unsafe { libc::ioctl(probe_fd, SIOCGIFINDEX, &mut req as *mut Ifreq) };
-    if rc < 0 {
+    // SAFETY: cname is a valid, NUL-terminated interface name.
+    let index = unsafe { libc::if_nametoindex(cname.as_ptr()) };
+    if index == 0 {
         let err = io::Error::last_os_error();
         if err.raw_os_error() == Some(libc::ENODEV) {
             return Err(TransportError::InterfaceNotFound(interface.to_string()));
         }
         return Err(map_open_error(err));
     }
-    // index_or_other[0..4] is now a little-endian i32 on Linux.
-    let mut bytes = [0u8; 4];
-    bytes.copy_from_slice(&req.index_or_other[0..4]);
-    Ok(i32::from_ne_bytes(bytes))
+    i32::try_from(index)
+        .map_err(|_| TransportError::Io(io::Error::other("CAN interface index exceeds i32")))
 }
 
 fn map_open_error(e: io::Error) -> TransportError {

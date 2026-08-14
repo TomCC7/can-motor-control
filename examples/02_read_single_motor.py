@@ -46,6 +46,7 @@ def parse_can_id(text: str) -> int:
 def build_robot(args: argparse.Namespace):
     # Lazy import so ``--help`` works even if the native wheel is missing.
     import can_motor_control
+    from _native_transport import open_native_transport
     from can_motor_control.damiao import DamiaoCodec, MotorType
 
     if args.mock:
@@ -55,7 +56,7 @@ def build_robot(args: argparse.Namespace):
             else can_motor_control.MockCanBus("vcan_mock")
         )
     else:
-        transport = can_motor_control.SocketCanBus(args.interface, fd=args.fd)
+        transport = open_native_transport(args.interface, fd=args.fd)
 
     motor_type = getattr(MotorType, args.motor_type, None)
     if motor_type is None:

@@ -190,6 +190,7 @@ def main() -> int:
     )
 
     import can_motor_control
+    from _native_transport import open_native_transport
     from can_motor_control.damiao import DamiaoCodec
 
     transport = (
@@ -197,7 +198,7 @@ def main() -> int:
         if args.mock and args.fd
         else can_motor_control.MockCanBus("vcan_mock")
         if args.mock
-        else can_motor_control.SocketCanBus(args.interface, fd=args.fd)
+        else open_native_transport(args.interface, fd=args.fd)
     )
     robot = (
         can_motor_control.RobotBuilder()

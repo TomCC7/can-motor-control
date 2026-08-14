@@ -23,7 +23,11 @@ use codec::{PyDamiaoCodec, PyMockFeedbackCodec, PyMotorType};
 use frame::PyCanFrame;
 use robot::{PyArm, PyGripper, PyMotor, PyMotorGroup, PyRobot, PyRobotBuilder};
 use spec::PyMotorSpec;
-use transport::{PyMockCanBus, PySocketCanBus};
+#[cfg(target_os = "macos")]
+use transport::PyGsUsbBus;
+use transport::PyMockCanBus;
+#[cfg(target_os = "linux")]
+use transport::PySocketCanBus;
 
 // The module argument sets each exception's `__module__`. Use `can_motor_control`
 // (the public package the exceptions are re-exported from and imported as), not
@@ -69,7 +73,10 @@ fn _native(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Classes.
     m.add_class::<PyCanFrame>()?;
     m.add_class::<PyMockCanBus>()?;
+    #[cfg(target_os = "linux")]
     m.add_class::<PySocketCanBus>()?;
+    #[cfg(target_os = "macos")]
+    m.add_class::<PyGsUsbBus>()?;
     m.add_class::<PyMotorSpec>()?;
     m.add_class::<PyMotor>()?;
     m.add_class::<PyArm>()?;

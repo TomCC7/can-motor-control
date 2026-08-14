@@ -73,8 +73,15 @@ jobs:
           if-no-files-found: error
 
   python_distributions:
-    name: Python wheel and sdist
-    runs-on: ubuntu-latest
+    name: Python distributions (${{ matrix.platform }})
+    strategy:
+      matrix:
+        include:
+          - platform: linux
+            os: ubuntu-latest
+          - platform: macos-arm64
+            os: macos-14
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -82,15 +89,22 @@ jobs:
         with:
           python-version: "3.10"
       - uses: Swatinem/rust-cache@v2
+      - name: Assert macOS arm64 runner
+        if: matrix.platform == 'macos-arm64'
+        run: test "$(uname -m)" = arm64
       - name: Install Python build tools
         run: |
           python -m pip install --upgrade pip
           pip install maturin numpy pytest
-      - name: Build wheel and sdist
+      - name: Build wheel
         working-directory: crates/can-motor-control-py
         run: |
           rm -rf ../../target/wheels
-          maturin build --release --strip --locked --compatibility pypi --sdist
+          maturin build --release --strip --locked --compatibility pypi
+      - name: Build sdist on Linux
+        if: matrix.platform == 'linux'
+        working-directory: crates/can-motor-control-py
+        run: maturin sdist --locked
       - name: Install wheel into a clean venv
         run: |
           python -m venv /tmp/venv
@@ -98,10 +112,11 @@ jobs:
           /tmp/venv/bin/pip install numpy pytest
           /tmp/venv/bin/pip install target/wheels/can_motor_control-*.whl
           /tmp/venv/bin/python -m pytest tests/python -v
+          /tmp/venv/bin/python -c "import can_motor_control as c, sys; native = 'GsUsbBus' if sys.platform == 'darwin' else 'SocketCanBus'; absent = 'SocketCanBus' if sys.platform == 'darwin' else 'GsUsbBus'; assert hasattr(c, native); assert not hasattr(c, absent)"
       - name: Upload Python distributions
         uses: actions/upload-artifact@v7
         with:
-          name: python-distributions
+          name: python-distributions-${{ matrix.platform }}
           path: target/wheels/can_motor_control-*
           if-no-files-found: error
 
