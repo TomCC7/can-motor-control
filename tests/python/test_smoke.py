@@ -6,8 +6,11 @@ dispatch, lifecycle — is wired correctly via Python without any real CAN
 hardware.
 """
 
-import numpy as np
+import sys
+import threading
 
+import numpy as np
+import pytest
 import can_motor_control
 from can_motor_control.damiao import DamiaoCodec, MotorType
 
@@ -54,9 +57,57 @@ def make_gripper_robot() -> can_motor_control.Robot:
 def test_imports():
     assert can_motor_control.Robot is not None
     assert can_motor_control.RobotBuilder is not None
-    assert can_motor_control.SocketCanBus is not None
+    if sys.platform == "linux":
+        assert can_motor_control.SocketCanBus is not None
+        assert not hasattr(can_motor_control, "GsUsbBus")
+    elif sys.platform == "darwin":
+        assert can_motor_control.GsUsbBus is not None
+        assert not hasattr(can_motor_control, "SocketCanBus")
+        for counter in ("rx_received", "rx_dropped", "tx_accepted", "tx_completed"):
+            assert hasattr(can_motor_control.GsUsbBus, counter)
     assert can_motor_control.MotorSpec is not None
     assert can_motor_control.DmError is not None
+
+
+def test_macos_gs_usb_constructor_rejects_contradictory_selector_without_hardware():
+    if sys.platform != "darwin":
+        return
+    with pytest.raises(TypeError):
+        can_motor_control.GsUsbBus(0x1D50, 0x606F)
+    with pytest.raises(can_motor_control.TransportError, match="mutually exclusive"):
+        can_motor_control.GsUsbBus(
+            vendor_id=0x1D50,
+            product_id=0x606F,
+            serial_number="adapter",
+            index=0,
+        )
+
+
+def test_macos_gs_usb_readiness_wait_releases_gil():
+    if sys.platform != "darwin":
+        return
+    stop = threading.Event()
+    progress = 0
+
+    def count() -> None:
+        nonlocal progress
+        while not stop.is_set():
+            progress += 1
+
+    counter = threading.Thread(target=count)
+    counter.start()
+    before = progress
+    try:
+        with pytest.raises(can_motor_control.TransportError):
+            can_motor_control.GsUsbBus(
+                vendor_id=0xFFFF,
+                product_id=0xFFFF,
+                initialization_timeout=0.1,
+            )
+    finally:
+        stop.set()
+        counter.join()
+    assert progress > before
 
 
 def test_damiao_submodule_accessible():

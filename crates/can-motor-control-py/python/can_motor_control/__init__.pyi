@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+import sys
 from typing import Any, ClassVar
 
 import numpy as np
@@ -30,8 +31,29 @@ class MockCanBus:
     @staticmethod
     def new_fd(name: str) -> "MockCanBus": ...
 
-class SocketCanBus:
-    def __init__(self, interface: str, fd: bool = False) -> None: ...
+if sys.platform == "linux":
+    class SocketCanBus:
+        def __init__(self, interface: str, fd: bool = False) -> None: ...
+elif sys.platform == "darwin":
+    class GsUsbBus:
+        def __init__(
+            self,
+            *,
+            vendor_id: int,
+            product_id: int,
+            serial_number: str | None = None,
+            index: int | None = None,
+            bitrate: int = 1_000_000,
+            initialization_timeout: float = 5.0,
+        ) -> None: ...
+        @property
+        def rx_received(self) -> int: ...
+        @property
+        def rx_dropped(self) -> int: ...
+        @property
+        def tx_accepted(self) -> int: ...
+        @property
+        def tx_completed(self) -> int: ...
 
 class MockFeedbackCodec:
     def __init__(self, recv_id: int) -> None: ...

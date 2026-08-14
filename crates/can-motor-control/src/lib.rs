@@ -1,4 +1,5 @@
-//! Robot control for Damiao-family CAN motors on Linux SocketCAN.
+//! Cross-platform robot control for CAN motors using the target's native
+//! hardware transport.
 //!
 //! This crate is intentionally vendor-agnostic above the codec seam: it depends
 //! only on the [`motor_codec`] trait crate, never on a specific vendor codec.
@@ -26,9 +27,11 @@ pub use group::{
 pub use motor::{FaultCode, Motor};
 pub use robot::{Robot, RobotBuilder};
 pub use spec::{GripperOpeningSpec, GroupSpecKind, MotorSpec, OpeningDirection};
-pub use transport::{
-    BusPoller, CanBus, MockCanBus, MockRecordedCall, SocketCanBus, TransportError,
-};
+#[cfg(target_os = "linux")]
+pub use transport::SocketCanBus;
+pub use transport::{BusPoller, CanBus, MockCanBus, MockRecordedCall, TransportError};
+#[cfg(target_os = "macos")]
+pub use transport::{GsUsbBus, GsUsbConfig, GsUsbStatistics};
 
 // Re-export can-motor-codec public types so users have a single import surface.
 pub use motor_codec::{

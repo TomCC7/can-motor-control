@@ -18,7 +18,31 @@ use pyo3::types::{PyAnyMethods, PyList};
 use crate::codec::{PyDamiaoCodec, PyMockFeedbackCodec};
 use crate::errors::into_pyerr;
 use crate::spec::PyMotorSpec;
-use crate::transport::{PyMockCanBus, PySocketCanBus};
+#[cfg(target_os = "macos")]
+use crate::transport::PyGsUsbBus;
+#[cfg(target_os = "linux")]
+use crate::transport::PySocketCanBus;
+use crate::transport::{PyMockCanBus, TransportHandle};
+
+fn extract_transport_handle(transport: &Bound<'_, PyAny>) -> Option<TransportHandle> {
+    if let Ok(mock) = transport.extract::<PyRef<'_, PyMockCanBus>>() {
+        return Some(mock.handle.clone());
+    }
+    #[cfg(target_os = "linux")]
+    if let Ok(socketcan) = transport.extract::<PyRef<'_, PySocketCanBus>>() {
+        return Some(socketcan.handle.clone());
+    }
+    #[cfg(target_os = "macos")]
+    if let Ok(gs_usb) = transport.extract::<PyRef<'_, PyGsUsbBus>>() {
+        return Some(gs_usb.handle.clone());
+    }
+    None
+}
+
+#[cfg(target_os = "linux")]
+const ACCEPTED_TRANSPORTS: &str = "transport must be MockCanBus or SocketCanBus";
+#[cfg(target_os = "macos")]
+const ACCEPTED_TRANSPORTS: &str = "transport must be MockCanBus or GsUsbBus";
 
 /// A live view of one motor's most recent feedback.
 ///
@@ -702,7 +726,7 @@ impl PyRobotBuilder {
 
     /// Register a named bus from a ``transport`` and a ``codec``.
     ///
-    /// ``transport`` is a `MockCanBus` or `SocketCanBus`, and ``codec`` is a
+    /// ``transport`` is `MockCanBus` or the platform-native hardware bus, and ``codec`` is a
     /// `can_motor_control.damiao.DamiaoCodec` or `MockFeedbackCodec`. Both are
     /// consumed: passing one already added to another bus raises
     /// ``ValueError``. Returns the builder for chaining.
@@ -713,17 +737,8 @@ impl PyRobotBuilder {
         transport: Bound<'_, PyAny>,
         codec: Bound<'_, PyAny>,
     ) -> PyResult<Py<Self>> {
-        // Accept MockCanBus or SocketCanBus for transport; PyDamiaoCodec or
-        // PyMockFeedbackCodec for codec.
-        let transport_handle = if let Ok(mock) = transport.extract::<PyRef<'_, PyMockCanBus>>() {
-            mock.handle.clone()
-        } else if let Ok(sock) = transport.extract::<PyRef<'_, PySocketCanBus>>() {
-            sock.handle.clone()
-        } else {
-            return Err(PyTypeError::new_err(
-                "transport must be MockCanBus or SocketCanBus",
-            ));
-        };
+        let transport_handle = extract_transport_handle(&transport)
+            .ok_or_else(|| PyTypeError::new_err(ACCEPTED_TRANSPORTS))?;
         let codec_handle = if let Ok(dm) = codec.extract::<PyRef<'_, PyDamiaoCodec>>() {
             dm.handle.clone()
         } else if let Ok(mock) = codec.extract::<PyRef<'_, PyMockFeedbackCodec>>() {

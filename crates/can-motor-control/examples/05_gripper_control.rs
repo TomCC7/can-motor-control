@@ -22,9 +22,12 @@ use std::time::{Duration, Instant};
 
 use can_motor_control::{
     CanBus, CommandKind, MitCmd, MockCanBus, MotorCodec, MotorSpec, PosForceCmd, PosVelCmd,
-    RobotBuilder, SocketCanBus,
+    RobotBuilder,
 };
 use damiao_codec::{parse_motor_type, DamiaoCodec};
+
+mod support;
+use support::open_native_transport;
 
 const DEFAULT_INTERFACE: &str = "can0";
 const DEFAULT_SEND_ID: u32 = 0x08;
@@ -374,7 +377,7 @@ fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     } else if args.mock {
         Box::new(MockCanBus::new("vcan_mock"))
     } else {
-        Box::new(SocketCanBus::open(&args.interface, args.fd)?)
+        open_native_transport(&args.interface, args.fd)?
     };
     let codec: Box<dyn MotorCodec> = Box::new(DamiaoCodec::new());
     let mut robot = RobotBuilder::new()

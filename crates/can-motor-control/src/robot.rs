@@ -120,10 +120,6 @@ impl Robot {
                 poller.register(token, fd)?;
                 bus_tokens.insert(bus_name.clone(), token);
                 token_to_bus.insert(token, bus_name.clone());
-            } else {
-                log::warn!(
-                    "bus '{bus_name}' has no raw_fd; out-of-band polling required (not implemented in v1)"
-                );
             }
         }
         self.poller = Some(poller);
@@ -517,9 +513,9 @@ fn log_calibration_debug(args: std::fmt::Arguments<'_>) {
 
 impl Drop for Robot {
     fn drop(&mut self) {
-        // OwnedFd inside each bus's SocketCanBus closes the underlying socket
-        // automatically. We don't send disable frames here — that's the user's
-        // responsibility via explicit disable().
+        // Each transport owns its platform resources. We don't send disable
+        // frames here — that's the user's responsibility via explicit
+        // disable().
         for token in self.token_to_bus.keys() {
             if let Some(p) = self.poller.as_ref() {
                 if let Some(name) = self.token_to_bus.get(token) {

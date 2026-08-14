@@ -70,10 +70,10 @@ Python package metadata readiness:
   `pyproject.toml`.
 - The project name is `can-motor-control`; the import package is
   `can_motor_control`; the native extension is `can_motor_control._native`.
-- The package declares Python `>=3.10`, Linux/POSIX classifiers, dual-license
+- The package declares Python `>=3.10`, Linux and macOS classifiers, dual-license
   classifiers, and runtime dependency `numpy>=1.24`.
-- The release-candidate workflow builds both a wheel and an sdist with maturin
-  and installs the wheel into a clean virtual environment before running pytest.
+- The release-candidate workflow builds Linux and macOS arm64 wheels plus one
+  sdist, then installs each wheel into a clean environment before running tests.
 
 ## Release-candidate validation
 
@@ -99,12 +99,13 @@ The workflow does not receive registry credentials. It runs:
 - `cargo publish --dry-run -p can-motor-damiao-codec` when upstream crates are already on crates.io
 - `cargo publish --dry-run -p can-motor-control` when upstream crates are already on crates.io
 - staged downstream validation during the initial release, after upstream crates are public
-- `maturin build --release --strip --locked --compatibility pypi --sdist`
-- clean wheel installation and `pytest tests/python -v`
+- Linux and macOS arm64 `maturin` wheel builds, plus one Linux-built sdist
+- clean wheel installation, platform-export checks, and `pytest tests/python -v`
 - docs build through `scripts/build-docs.sh --frozen`, including MkDocs and
   hosted rustdoc under `site/rustdoc/`
 
-Inspect the uploaded `crate-packages` and `python-distributions` artifacts
+Inspect the uploaded `crate-packages`, `python-distributions-linux`, and
+`python-distributions-macos-arm64` artifacts
 before publishing. During the very first crates.io run, `crate-packages` only
 contains crates whose dry-runs can resolve against the current crates.io index.
 

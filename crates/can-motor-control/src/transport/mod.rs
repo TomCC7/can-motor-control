@@ -6,12 +6,19 @@ use std::os::fd::RawFd;
 use motor_codec::{BusCapabilities, CanFrame, FrameError};
 use thiserror::Error;
 
+mod gs_usb;
 mod mock;
 mod poller;
+#[cfg(target_os = "linux")]
 mod socketcan;
 
+#[cfg(target_os = "macos")]
+pub use gs_usb::GsUsbStatistics;
+#[cfg(target_os = "macos")]
+pub use gs_usb::{GsUsbBus, GsUsbConfig};
 pub use mock::{MockCanBus, MockRecordedCall};
 pub use poller::BusPoller;
+#[cfg(target_os = "linux")]
 pub use socketcan::SocketCanBus;
 
 /// The contract every CAN transport must satisfy.
@@ -35,8 +42,8 @@ pub trait CanBus: Send {
     fn drain_inbound_nonblocking(&mut self) -> Result<Vec<CanFrame>, TransportError>;
 
     /// Pollable file descriptor for `poll(2)`-based multiplexing. Returns
-    /// `None` for transports that have no single pollable fd (future serial /
-    /// SLCAN); those must be polled out-of-band.
+    /// `None` for transports that have no single pollable fd. The robot drains
+    /// those transports from memory on every [`crate::Robot::tick`] call.
     fn raw_fd(&self) -> Option<RawFd>;
 }
 
@@ -44,6 +51,10 @@ pub trait CanBus: Send {
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum TransportError {
+    /// The requested transport setup is contradictory or unsupported.
+    #[error("invalid transport configuration: {0}")]
+    InvalidConfiguration(String),
+
     /// The named interface does not exist on this host.
     #[error("interface not found: {0}")]
     InterfaceNotFound(String),

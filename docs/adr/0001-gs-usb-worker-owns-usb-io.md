@@ -1,0 +1,3 @@
+# Let one worker own all gs_usb I/O
+
+On macOS, `GsUsbBus` uses one background worker that exclusively owns the complete USB lifecycle, from discovery and initialization through both bulk endpoints and final interface release. Construction waits for the worker to report ready or return its initialization error. Once ready, `send()` only validates and enqueues outbound frames, while the worker submits bulk-OUT transfers, continuously drains bulk-IN transfers, consumes TX echoes, and publishes received CAN frames to a bounded queue. This keeps USB waits off the control thread and gives retry, transfer cancellation, echo bookkeeping, terminal I/O failure, and cleanup a single owner.

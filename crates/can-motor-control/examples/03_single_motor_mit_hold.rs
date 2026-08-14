@@ -17,8 +17,11 @@ use std::process::ExitCode;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use can_motor_control::{CanBus, MitCmd, MotorCodec, MotorSpec, RobotBuilder, SocketCanBus};
+use can_motor_control::{CanBus, MitCmd, MotorCodec, MotorSpec, RobotBuilder};
 use damiao_codec::{parse_motor_type, DamiaoCodec};
+
+mod support;
+use support::open_native_transport;
 
 const DEFAULT_INTERFACE: &str = "can0";
 const DEFAULT_SEND_ID: u32 = 0x01;
@@ -188,7 +191,7 @@ fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         .ok_or_else(|| format!("unknown --motor-type {}", args.motor_type))?;
     print_assumptions(&args);
 
-    let transport: Box<dyn CanBus> = Box::new(SocketCanBus::open(&args.interface, args.fd)?);
+    let transport: Box<dyn CanBus> = open_native_transport(&args.interface, args.fd)?;
     let codec: Box<dyn MotorCodec> = Box::new(DamiaoCodec::new());
     let mut robot = RobotBuilder::new()
         .add_bus("main", transport, codec)

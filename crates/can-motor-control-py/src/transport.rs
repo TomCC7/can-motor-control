@@ -2,7 +2,11 @@
 
 use std::sync::{Arc, Mutex};
 
-use can_motor_control::{CanBus, MockCanBus, SocketCanBus};
+#[cfg(target_os = "linux")]
+use can_motor_control::SocketCanBus;
+use can_motor_control::{CanBus, MockCanBus};
+#[cfg(target_os = "macos")]
+use can_motor_control::{GsUsbBus, GsUsbConfig, GsUsbStatistics};
 use pyo3::prelude::*;
 
 use crate::errors::transport_to_pyerr;
@@ -69,11 +73,13 @@ impl PyMockCanBus {
 /// `RobotBuilder.add_bus`. A bus is consumed by the builder and may
 /// be added to only one robot.
 #[pyclass(name = "SocketCanBus", module = "can_motor_control")]
+#[cfg(target_os = "linux")]
 pub struct PySocketCanBus {
     pub(crate) handle: TransportHandle,
 }
 
 #[pymethods]
+#[cfg(target_os = "linux")]
 impl PySocketCanBus {
     /// Open SocketCAN ``interface``.
     ///
@@ -89,5 +95,66 @@ impl PySocketCanBus {
         Ok(Self {
             handle: TransportHandle::new(bus),
         })
+    }
+}
+
+/// A classical-CAN bus backed by a gs_usb adapter through native macOS IOKit.
+#[cfg(target_os = "macos")]
+#[pyclass(name = "GsUsbBus", module = "can_motor_control")]
+pub struct PyGsUsbBus {
+    pub(crate) handle: TransportHandle,
+    statistics: GsUsbStatistics,
+}
+
+#[cfg(target_os = "macos")]
+#[pymethods]
+impl PyGsUsbBus {
+    #[new]
+    #[pyo3(signature = (*, vendor_id, product_id, serial_number=None, index=None, bitrate=1_000_000, initialization_timeout=5.0))]
+    fn new(
+        py: Python<'_>,
+        vendor_id: u16,
+        product_id: u16,
+        serial_number: Option<String>,
+        index: Option<usize>,
+        bitrate: u32,
+        initialization_timeout: f64,
+    ) -> PyResult<Self> {
+        if !initialization_timeout.is_finite() || initialization_timeout <= 0.0 {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "initialization_timeout must be finite and greater than zero",
+            ));
+        }
+        let mut config = GsUsbConfig::new(vendor_id, product_id);
+        config.serial_number = serial_number;
+        config.index = index;
+        config.bitrate = bitrate;
+        config.initialization_timeout = std::time::Duration::from_secs_f64(initialization_timeout);
+        // USB discovery and the complete ready-or-error initialization wait do
+        // not hold the Python GIL.
+        let bus = py.allow_threads(|| GsUsbBus::open(config));
+        let bus = bus.map_err(transport_to_pyerr)?;
+        let statistics = bus.statistics();
+        Ok(Self {
+            handle: TransportHandle::new(bus),
+            statistics,
+        })
+    }
+
+    #[getter]
+    fn rx_received(&self) -> u64 {
+        self.statistics.rx_received()
+    }
+    #[getter]
+    fn rx_dropped(&self) -> u64 {
+        self.statistics.rx_dropped()
+    }
+    #[getter]
+    fn tx_accepted(&self) -> u64 {
+        self.statistics.tx_accepted()
+    }
+    #[getter]
+    fn tx_completed(&self) -> u64 {
+        self.statistics.tx_completed()
     }
 }

@@ -4,12 +4,13 @@ build-backend = "maturin"
 
 [project]
 name = "can-motor-control"
-description = "Rust-backed control library for Damiao-family CAN motors"
+description = "Rust-backed cross-platform control library for Damiao-family CAN motors"
 requires-python = ">=3.10"
 classifiers = [
   "Programming Language :: Rust",
   "Programming Language :: Python :: Implementation :: CPython",
   "Operating System :: POSIX :: Linux",
+  "Operating System :: MacOS :: MacOS X",
   "License :: OSI Approved :: Apache Software License",
   "License :: OSI Approved :: MIT License",
 ]
