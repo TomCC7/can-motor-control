@@ -21,3 +21,6 @@ motor-codec = { workspace = true, features = ["std"] }
 pyo3 = { workspace = true }
 numpy = { workspace = true }
 log = { workspace = true }
+
+[build-dependencies]
+pyo3-build-config = { workspace = true }
